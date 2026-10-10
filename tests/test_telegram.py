@@ -14,7 +14,7 @@ async def test_command_menu_includes_rollout_commands():
     await client.set_commands()
     payload = client._request.await_args.args[1]
     assert {item["command"] for item in payload["commands"]} == {
-        "start", "help", "status", "goal", "blocker", "jd"
+        "start", "help", "status", "goal", "blocker", "jd", "growth"
     }
     await client.close()
 

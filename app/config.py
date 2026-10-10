@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     google_creds_path: str = "credentials/google-service-account.json"
     enable_team_workflows: bool = False
     enable_scheduled_workflows: bool = False
+    enable_analytics: bool = False
     job_descriptions_worksheet: str | None = None
     blocker_log_worksheet: str | None = None
 

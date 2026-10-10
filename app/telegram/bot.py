@@ -5,6 +5,7 @@ import asyncio
 import logging
 from typing import Any
 
+from app.analytics.service import GrowthAnalyticsService
 from app.config import Settings
 from app.team.workflows import TeamWorkflowService
 from app.telegram.client import TelegramAPIError, TelegramClient
@@ -17,7 +18,8 @@ HELP_TEXT = (
     "/status — view your accountability status\n"
     "/goal <KPI name> <target> — update your assigned KPI target\n"
     "/blocker <description> — report a blocker\n"
-    "/jd [name or @handle] — view an authoritative role description"
+    "/jd [name or @handle] — view an authoritative role description\n"
+    "/growth — view private website and YouTube growth metrics (when enabled)"
 )
 
 
@@ -29,10 +31,12 @@ class TelegramBot:
         client: TelegramClient,
         settings: Settings,
         workflows: TeamWorkflowService | None = None,
+        analytics: GrowthAnalyticsService | None = None,
     ) -> None:
         self.client = client
         self.settings = settings
         self.workflows = workflows
+        self.analytics = analytics
         self._stop = asyncio.Event()
         self._offset: int | None = None
 
@@ -82,7 +86,7 @@ class TelegramBot:
         parts = text.strip().split(maxsplit=1)
         command = parts[0].split("@", maxsplit=1)[0].lower()
         args = parts[1].strip() if len(parts) > 1 else ""
-        if command not in {"/start", "/help", "/status", "/goal", "/blocker", "/jd"}:
+        if command not in {"/start", "/help", "/status", "/goal", "/blocker", "/jd", "/growth"}:
             return
 
         sender_id = sender.get("id") if isinstance(sender, dict) else None
@@ -94,6 +98,8 @@ class TelegramBot:
         )
         if command in {"/start", "/help"}:
             reply = HELP_TEXT
+        elif command == "/growth":
+            reply = await self._growth_reply(chat_id)
         elif self.workflows is not None:
             reply = await self.workflows.handle(command, args, chat_id)
         else:
@@ -103,6 +109,26 @@ class TelegramBot:
                 "before Polaris can read or change team data."
             )
         await self._reply(chat_id, reply)
+
+    async def _growth_reply(self, chat_id: int | str) -> str:
+        if not self.settings.enable_analytics or self.analytics is None:
+            return "Growth analytics are disabled. An administrator must configure and enable them."
+        core_chat_id = self.settings.telegram_core_chat_id
+        if not core_chat_id:
+            return (
+                "Growth analytics are unavailable because the private core chat "
+                "is not configured."
+            )
+        if str(chat_id) != str(core_chat_id):
+            return (
+                "For privacy, growth analytics are available only in the configured "
+                "private core chat."
+            )
+        try:
+            return await self.analytics.report()
+        except Exception:
+            logger.exception("growth_analytics_command_failed")
+            return "Growth analytics could not be loaded. Check provider credentials and logs."
 
     async def _reply(self, chat_id: int | str, text: str) -> None:
         if self.settings.dry_run:

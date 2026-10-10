@@ -24,4 +24,4 @@ def test_readiness_does_not_claim_integrations_are_connected():
     assert response.status_code == 200
     payload = response.json()
     assert payload["status"] == "ready"
-    assert payload["integrations"]["analytics"] == "not_implemented"
+    assert payload["integrations"]["analytics"] == "not_enabled"

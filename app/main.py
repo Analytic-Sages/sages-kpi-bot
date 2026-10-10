@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
+from app.analytics.service import GrowthAnalyticsService
 from app.config import get_settings
 from app.logging_config import configure_logging
 from app.scheduled.workflows import ScheduledWorkflowService, build_scheduler
@@ -52,7 +53,13 @@ async def lifespan(_: FastAPI):
                 bool(settings.blocker_log_worksheet),
             )
         telegram_client = TelegramClient(settings.telegram_bot_token)
-        telegram_bot = TelegramBot(telegram_client, settings, workflows=workflows)
+        analytics = GrowthAnalyticsService(settings) if settings.enable_analytics else None
+        telegram_bot = TelegramBot(
+            telegram_client,
+            settings,
+            workflows=workflows,
+            analytics=analytics,
+        )
         try:
             await telegram_bot.start()
             telegram_task = asyncio.create_task(telegram_bot.run(), name="polaris-telegram-polling")
@@ -129,7 +136,11 @@ async def readiness() -> JSONResponse:
                     else "enabled" if settings.enable_scheduled_workflows
                     else "not_enabled"
                 ),
-                "analytics": "not_implemented",
+                "analytics": (
+                    "enabled_dry_run" if settings.enable_analytics and settings.dry_run
+                    else "enabled" if settings.enable_analytics
+                    else "not_enabled"
+                ),
             },
         },
     )

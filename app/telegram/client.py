@@ -50,6 +50,7 @@ class TelegramClient:
             {"command": "goal", "description": "Set a KPI goal"},
             {"command": "blocker", "description": "Report a blocker"},
             {"command": "jd", "description": "Check role and job-description alignment"},
+            {"command": "growth", "description": "View private website and YouTube growth metrics"},
         ]
         await self._request("setMyCommands", {"commands": commands})
 
