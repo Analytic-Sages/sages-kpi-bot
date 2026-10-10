@@ -40,7 +40,9 @@ class ScheduledWorkflowService:
             if not kpis or not required_kpis.issubset(kpis[0]):
                 raise ValueError("KPI Register headers do not match the scheduled workflow schema")
             if logs and not required_logs.issubset(logs[0]):
-                raise ValueError("Weekly KPI Log headers do not match the scheduled workflow schema")
+                raise ValueError(
+                    "Weekly KPI Log headers do not match the scheduled workflow schema"
+                )
 
             active = [
                 row for row in kpis
@@ -89,7 +91,8 @@ class ScheduledWorkflowService:
             f"🎯 Team focus — {today}\n\n"
             "1. What is your single most important measurable outcome today?\n"
             "2. What will you ship or complete, and by when?\n"
-            "3. Is anything blocking you? Use /blocker <description> if the workflow is enabled.\n\n"
+            "3. Is anything blocking you? Use /blocker <description> "
+            "if the workflow is enabled.\n\n"
             "Keep the commitment specific and update the tracker as work progresses."
         )
         await self._send_private(message, "daily_focus_prompt")
@@ -110,7 +113,10 @@ class ScheduledWorkflowService:
     async def _send_private(self, message: str, workflow_name: str) -> None:
         chat_id = self.settings.telegram_core_chat_id
         if not chat_id:
-            logger.warning("scheduled_message_skipped workflow=%s reason=missing_core_chat_id", workflow_name)
+            logger.warning(
+                "scheduled_message_skipped workflow=%s reason=missing_core_chat_id",
+                workflow_name,
+            )
             return
         if self.settings.dry_run:
             logger.info(
