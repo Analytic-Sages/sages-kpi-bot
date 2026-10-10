@@ -1,6 +1,7 @@
 """Polaris HTTP application entry point."""
 import asyncio
 import logging
+import sqlite3
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -14,6 +15,13 @@ from app.sheets.client import GoogleSheetsClient
 from app.team.workflows import TeamWorkflowService
 from app.telegram.bot import TelegramBot
 from app.telegram.client import TelegramClient
+from app.webhooks.store import (
+    SQLiteWebhookEventStore,
+    WebhookConflictError,
+    WebhookValidationError,
+    parse_event,
+    verify_signature,
+)
 
 settings = get_settings()
 configure_logging(settings.log_level)
@@ -23,11 +31,12 @@ logger = logging.getLogger("polaris")
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     logger.info(
-        "application_starting app=%s environment=%s dry_run=%s timezone=%s",
+        "application_starting app=%s environment=%s dry_run=%s timezone=%s webhooks_enabled=%s",
         settings.app_name,
         settings.app_env,
         settings.dry_run,
         settings.timezone,
+        settings.enable_webhooks,
     )
     telegram_client: TelegramClient | None = None
     telegram_bot: TelegramBot | None = None
@@ -120,6 +129,13 @@ async def liveness() -> dict[str, str]:
 
 @app.get("/health/ready", tags=["health"])
 async def readiness() -> JSONResponse:
+    webhook_state = (
+        "enabled"
+        if settings.enable_webhooks and settings.webhook_secret
+        else "misconfigured"
+        if settings.enable_webhooks
+        else "not_enabled"
+    )
     return JSONResponse(
         status_code=200,
         content={
@@ -141,8 +157,65 @@ async def readiness() -> JSONResponse:
                     else "enabled" if settings.enable_analytics
                     else "not_enabled"
                 ),
+                "webhooks": webhook_state,
             },
         },
+    )
+
+
+@app.post("/webhooks/events", tags=["webhooks"])
+async def receive_webhook(request: Request) -> JSONResponse:
+    """Authenticate and persist event metadata; do not execute event payloads."""
+    if not settings.enable_webhooks:
+        return JSONResponse(status_code=404, content={"detail": "Not found"})
+    if not settings.webhook_secret:
+        logger.error("webhook_rejected reason=missing_secret")
+        return JSONResponse(status_code=503, content={"detail": "Webhook receiver is misconfigured"})
+
+    body = await request.body()
+    if len(body) > settings.webhook_max_body_bytes:
+        return JSONResponse(status_code=413, content={"detail": "Webhook body is too large"})
+
+    timestamp = request.headers.get("X-Polaris-Timestamp", "")
+    event_id = request.headers.get("X-Polaris-Event-Id", "")
+    signature = request.headers.get("X-Polaris-Signature", "")
+    try:
+        verify_signature(
+            secret=settings.webhook_secret,
+            timestamp=timestamp,
+            event_id=event_id,
+            body=body,
+            signature=signature,
+            max_skew_seconds=settings.webhook_max_skew_seconds,
+        )
+    except WebhookValidationError:
+        logger.warning("webhook_rejected reason=authentication")
+        return JSONResponse(status_code=401, content={"detail": "Invalid webhook authentication"})
+
+    try:
+        event_id, event_type = parse_event(body, event_id)
+    except WebhookValidationError as exc:
+        return JSONResponse(status_code=400, content={"detail": str(exc)})
+
+    try:
+        store = await asyncio.to_thread(SQLiteWebhookEventStore, settings.webhook_db_path)
+        first_delivery = await store.record(event_id, event_type, body)
+    except WebhookConflictError:
+        logger.warning("webhook_rejected reason=event_id_conflict event_id=%s", event_id)
+        return JSONResponse(status_code=409, content={"detail": "Event ID conflicts with prior delivery"})
+    except (OSError, RuntimeError, sqlite3.Error):
+        logger.exception("webhook_store_failed event_id=%s", event_id)
+        return JSONResponse(status_code=503, content={"detail": "Webhook event store unavailable"})
+
+    logger.info(
+        "webhook_event_received event_id=%s event_type=%s duplicate=%s",
+        event_id,
+        event_type,
+        not first_delivery,
+    )
+    return JSONResponse(
+        status_code=202 if first_delivery else 200,
+        content={"accepted": True, "duplicate": not first_delivery, "event_id": event_id},
     )
 
 
