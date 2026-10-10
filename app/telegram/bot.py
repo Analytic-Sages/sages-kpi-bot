@@ -77,11 +77,19 @@ class TelegramBot:
             return
 
         sender_id = sender.get("id") if isinstance(sender, dict) else None
-        logger.info("telegram_command_received command=%s chat_id=%s sender_id=%s", command, chat_id, sender_id)
+        logger.info(
+            "telegram_command_received command=%s chat_id=%s sender_id=%s",
+            command,
+            chat_id,
+            sender_id,
+        )
         if command in {"/start", "/help"}:
             reply = HELP_TEXT
         else:
-            reply = "This command is registered but is not enabled yet. Polaris is being rolled out in stages."
+            reply = (
+                "This command is registered but is not enabled yet. "
+                "Polaris is being rolled out in stages."
+            )
         await self._reply(chat_id, reply)
 
     async def _reply(self, chat_id: int | str, text: str) -> None:

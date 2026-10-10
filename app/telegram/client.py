@@ -1,12 +1,9 @@
 """Small asynchronous Telegram Bot API client built on httpx."""
 from __future__ import annotations
 
-import logging
 from typing import Any
 
 import httpx
-
-logger = logging.getLogger(__name__)
 
 
 class TelegramAPIError(RuntimeError):
@@ -38,7 +35,10 @@ class TelegramClient:
         except (httpx.HTTPError, ValueError) as exc:
             raise TelegramAPIError(f"Telegram API request {method} failed") from exc
         if not isinstance(body, dict) or not body.get("ok"):
-            description = body.get("description", "unknown Telegram API error") if isinstance(body, dict) else "invalid response"
+            if isinstance(body, dict):
+                description = body.get("description", "unknown Telegram API error")
+            else:
+                description = "invalid response"
             raise TelegramAPIError(f"Telegram API request {method} failed: {description}")
         return body.get("result")
 

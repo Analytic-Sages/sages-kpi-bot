@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from app.config import Settings
-from app.telegram.bot import HELP_TEXT, TelegramBot
+from app.telegram.bot import TelegramBot
 from app.telegram.client import TelegramAPIError, TelegramClient
 
 
