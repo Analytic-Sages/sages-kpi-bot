@@ -7,20 +7,53 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any, TypeVar
 
+import google.auth
 import gspread
-from google.oauth2.service_account import Credentials
+from google.oauth2.credentials import Credentials as OAuthCredentials
 
 from app.config import Settings
 from app.sheets.schema import SheetRow, normalize_headers, rows_from_values, validate_record_fields
 
 logger = logging.getLogger(__name__)
 SHEETS_SCOPE = ["https://www.googleapis.com/auth/spreadsheets"]
+GOOGLE_TOKEN_URI = "https://oauth2.googleapis.com/token"
 MAX_API_ATTEMPTS = 3
 T = TypeVar("T")
 
 
 class GoogleSheetsError(RuntimeError):
     """Raised for Google Sheets access or mutation failures."""
+
+
+def google_auth_mode(settings: Settings) -> str:
+    """Return the configured Google auth mode or raise a safe configuration error.
+
+    OAuth refresh-token authentication takes precedence when all three OAuth settings are
+    supplied. Credential files may be service-account JSON or external-account/WIF configs.
+    Secret values and file contents are never included in error messages.
+    """
+    oauth_values = (
+        settings.google_oauth_client_id,
+        settings.google_oauth_client_secret,
+        settings.google_oauth_refresh_token,
+    )
+    configured_oauth_values = sum(bool(value and value.strip()) for value in oauth_values)
+    if configured_oauth_values:
+        if configured_oauth_values != len(oauth_values):
+            raise GoogleSheetsError(
+                "Google OAuth authentication requires "
+                "GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET, and "
+                "GOOGLE_OAUTH_REFRESH_TOKEN to be configured together"
+            )
+        return "oauth"
+
+    credentials_path = Path(settings.google_creds_path).expanduser()
+    if credentials_path.is_file():
+        return "file"
+    raise GoogleSheetsError(
+        "Google authentication is not configured: provide all three Google OAuth settings "
+        "or a supported credentials file via GOOGLE_CREDS_PATH"
+    )
 
 
 class GoogleSheetsClient:
@@ -34,15 +67,27 @@ class GoogleSheetsClient:
         """Create an authenticated client after validating required configuration."""
         if not settings.google_sheet_id:
             raise GoogleSheetsError("GOOGLE_SHEET_ID is not configured")
-        credentials_path = Path(settings.google_creds_path).expanduser()
-        if not credentials_path.is_file():
-            raise GoogleSheetsError(f"Google service-account file not found: {credentials_path}")
         try:
-            credentials = Credentials.from_service_account_file(
-                str(credentials_path), scopes=SHEETS_SCOPE
-            )
+            auth_mode = google_auth_mode(settings)
+            if auth_mode == "oauth":
+                credentials = OAuthCredentials(
+                    token=None,
+                    refresh_token=settings.google_oauth_refresh_token,
+                    token_uri=GOOGLE_TOKEN_URI,
+                    client_id=settings.google_oauth_client_id,
+                    client_secret=settings.google_oauth_client_secret,
+                    scopes=SHEETS_SCOPE,
+                )
+            else:
+                # google-auth handles service-account and external-account (WIF) configs.
+                credentials, _ = google.auth.load_credentials_from_file(
+                    str(Path(settings.google_creds_path).expanduser()),
+                    scopes=SHEETS_SCOPE,
+                )
             client = gspread.authorize(credentials)
             spreadsheet = client.open_by_key(settings.google_sheet_id)
+        except GoogleSheetsError:
+            raise
         except Exception as exc:
             raise GoogleSheetsError(
                 "Unable to authenticate or open the configured spreadsheet"
