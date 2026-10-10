@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     enable_team_workflows: bool = False
     enable_scheduled_workflows: bool = False
     enable_analytics: bool = False
+    enable_webhooks: bool = False
+    webhook_secret: str | None = None
+    webhook_db_path: str = "data/polaris-webhooks.sqlite3"
+    webhook_max_skew_seconds: int = Field(default=300, ge=30, le=3600)
+    webhook_max_body_bytes: int = Field(default=262144, ge=1024, le=2097152)
     job_descriptions_worksheet: str | None = None
     blocker_log_worksheet: str | None = None
 

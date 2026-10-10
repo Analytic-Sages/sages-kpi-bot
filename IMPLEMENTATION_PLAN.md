@@ -7,97 +7,50 @@
 ## Progress tracker
 
 - [x] **P0 — Repository foundation:** package structure, configuration validation, logging, health endpoints, Dockerfile, CI, baseline tests.
-- [x] **P1 — Telegram/service foundation:** async Bot API client, command registration, polling loop, dry-run replies, startup/shutdown handling; CI green in PR #2.
-- [x] **P2 — Google Sheets data layer:** header-driven reads/writes, schema validation, stable IDs, bounded retries; CI green in PR #3. Live workbook/service-account verification remains a production gate.
+- [x] **P1 — Telegram/service foundation:** async Bot API client, command registration, polling loop, dry-run replies, startup/shutdown handling; merged in PR #2.
+- [x] **P2 — Google Sheets data layer:** header-driven reads/writes, schema validation, stable IDs, bounded retries; merged in PR #3. Live workbook/service-account verification remains a production gate.
 - [x] **P3 — Accountability engine:** formula-driven task flags, reminder receipts, cooldowns, per-day limits, escalation safety; merged in PR #4. Live task polling remains gated on workbook verification.
-- [x] **P4 — Team workflows and role intelligence:** `/status`, `/goal`, `/blocker`, `/jd`, role/people matching, drift/bottleneck checks.
-- [x] **P5 — Scheduled workflows:** Monday KPI broadcast (09:00 UTC), Tue–Fri focus prompt (09:30 UTC), Friday checkout (15:00 UTC), timezone-aware scheduler; merged in PR #6. Live delivery remains gated on schema/routing/deployment verification.
-- [ ] **P6 — Growth analytics:** read-only GA4 and YouTube channel metrics; private core-chat access; Search Console remains a scope/credentials gate.
-- [ ] **P7 — Webhooks, deployment, operations:** authenticated idempotent events, observability, deployment runbook, final acceptance tests.
+- [x] **P4 — Team workflows and role intelligence:** `/status`, `/goal`, `/blocker`, `/jd`; merged in PR #5.
+- [x] **P5 — Scheduled workflows:** Monday KPI snapshot (09:00 UTC), Tue–Fri focus prompt (09:30 UTC), Friday checkout (15:00 UTC); merged in PR #6. Live delivery remains gated on schema/routing/deployment verification.
+- [x] **P6 — Growth analytics:** read-only GA4 and YouTube metrics, private core-chat access, opt-in `/growth`; merged in PR #7. Provider credentials and property access remain to be verified.
+- [ ] **P7 — Webhooks, deployment, operations:** authenticated idempotent inbound event ledger, deployment runbook, operational health/logging, final acceptance tests.
 
-## P0 acceptance criteria
+## P7 acceptance criteria
 
-- [x] App imports and serves HTTP health endpoints.
-- [x] Environment configuration validates timezone, port, logging level, and safety defaults.
-- [x] No credentials or production secrets are committed.
-- [x] CI installs the project, runs Ruff, and runs pytest.
-- [x] Readiness response does not falsely claim external integrations are connected.
-- [x] Local Docker image definition is included.
-
-## P1 acceptance criteria
-
-- [x] Telegram commands are registered without hard-coded credentials.
-- [x] Polling is isolated from the HTTP event loop and handles recoverable API errors.
-- [x] Replies respect `DRY_RUN` and no real sends occur by default.
-- [x] Startup and shutdown clean up the polling task and HTTP client.
-- [x] Ruff and pytest pass in CI.
-
-## P2 acceptance criteria
-
-- [x] Read and write records by header name rather than fixed column indexes.
-- [x] Reject blank/duplicate headers and unknown write columns.
-- [x] Reject ambiguous stable-ID matches instead of updating multiple people/tasks.
-- [x] Keep blocking Google client calls off the async event loop and retry failed API calls with bounded attempts.
-- [ ] Verify the live workbook's exact headers, formula fields, service-account access, and authoritative Job Descriptions source before enabling task reminders.
-
-## P3 acceptance criteria
-
-- [x] Reminder eligibility requires formula-driven Remind Now? and Escalate? fields; missing flags block safely.
-- [x] Verify active status, Notify?, Reachable?, owner identity, and recipient chat ID before a send.
-- [x] Escalations route to Manager Chat ID; missing recipient IDs block delivery.
-- [x] Persist successful delivery receipts in SQLite; failed sends release their claim and do not create receipts.
-- [x] Enforce cooldowns, a per-task daily cap, and expiring claims to prevent concurrent duplicate sends.
-- [x] Dry-run performs no send and creates no receipt.
-- [ ] Wire into live task polling only after workbook headers, formula flags, IDs, and service-account permissions are verified.
-
-## P4 acceptance criteria
-
-- [x] `/status` resolves one active team member from their Telegram chat ID and summarizes assigned active KPIs and the latest weekly result.
-- [x] `/goal` updates only one active KPI owned by the authenticated requester; ambiguous/missing matches and invalid targets do not write.
-- [x] `/blocker` does not claim a blocker was saved unless a configured, schema-validated destination accepted it.
-- [x] `/jd` reads only from an explicitly configured authoritative Job Descriptions worksheet; People Directory notes are never treated as JDs.
-- [x] Team workflows are opt-in with `ENABLE_TEAM_WORKFLOWS=false` by default.
-- [ ] Enable team workflows only after verifying live Telegram identity mapping, KPI fields, blocker destination, authoritative JD worksheet, and service-account write permissions.
-- [ ] Add drift/bottleneck checks after source data and ownership fields are verified.
-
-## P5 acceptance criteria
-
-- [x] Monday KPI snapshot aggregates the latest weekly result per KPI and routes only to the configured private core chat.
-- [x] Tuesday–Friday focus prompt and Friday checkout are scheduled with UTC CronTriggers; Friday checkout runs at 15:00 UTC to avoid colliding with the 09:30 focus prompt.
-- [x] Scheduler is opt-in with `ENABLE_SCHEDULED_WORKFLOWS=false` by default and respects `DRY_RUN=true`.
-- [x] Jobs use coalescing, a one-instance limit, and a bounded misfire grace period.
-- [ ] Verify the live KPI Register/Weekly KPI Log schemas, core chat ID, single-instance deployment, and delivery window before enabling scheduled workflows.
-
-## P6 acceptance criteria
-
-- [x] Read-only GA4 report uses the last seven complete days and a separately scoped Analytics read-only service-account token.
-- [x] YouTube channel report uses the YouTube Data API and explicitly labels lifetime channel totals.
-- [x] `/growth` is opt-in, only serves the configured private core chat, and never routes analytics to the public/community destination.
-- [x] Provider calls are asynchronous, time-bounded, and use bounded retries for transient HTTP errors.
-- [x] Provider failures and missing configuration produce safe, actionable status text rather than fabricated zero metrics.
-- [ ] Verify GA4 property access, YouTube API key/channel ID, and private chat routing before enabling analytics in production.
-- [ ] Decide whether Search Console is in scope and configure it only after its property and credential requirements are confirmed.
+- [x] Webhook receiver is disabled by default and returns no event details when disabled.
+- [x] Signed requests use HMAC-SHA256 over timestamp, event ID, and raw request body; timestamp freshness is checked.
+- [x] Body size and event envelope are validated before recording.
+- [x] Event IDs are durable/idempotent; identical repeats return duplicate success and conflicting reuse returns 409.
+- [x] Event payloads are not executed and are not stored; only metadata and a body hash are persisted.
+- [x] Health readiness reports webhook configuration state without claiming external connectivity.
+- [x] Deployment, secrets, persistence, single-instance, verification, and rollback guidance documented.
+- [ ] CI is green and the PR is reviewed/merged.
+- [ ] Validate webhook integration with the actual sender in staging; production use requires HTTPS, persistent storage, a rotated secret, monitoring, and a named owner.
 
 ## Design constraints to preserve
 
 1. Google Sheets remains the operational source of truth for team/role/KPI/task state.
-2. Task reminder and escalation decisions are driven by spreadsheet flags such as `Remind Now?` and `Escalate?`, not duplicate hard-coded business rules.
-3. Reminder receipts and cooldowns must be persisted; successful delivery must be confirmed before receipts are written.
-4. Public/community announcements and private growth analytics must use separate Telegram destinations.
-5. Directory and tracker columns are resolved by header names, never fixed numeric column positions.
-6. People records use stable IDs. Leaving staff should not erase historical KPI/task ownership.
-7. `Notify?`, `Reachable?`, status, and recipient IDs must be checked before messaging.
-8. `Social Workstream` and `Design Workstream` legacy notices direct users to `Master Task Tracker`.
-9. Role/job description checks must use an authoritative Job Descriptions source; `People Directory.Notes` is not assumed to be a job description.
-10. GA4 and YouTube reports need deduplication, correct metric aggregation, and private routing. YouTube RSS alone is insufficient for comment metrics.
-11. External API calls must not block the async event loop; retry and rate-limit handling must be explicit.
-12. All production sends are disabled until IDs, permissions, workbook headers, and routing are verified.
+2. Task reminder and escalation decisions are driven by spreadsheet flags such as `Remind Now?` and `Escalate?`, not duplicate hard-coded rules.
+3. Persist reminder receipts/cooldowns; confirm successful delivery before writing receipts.
+4. Public/community announcements and private growth analytics use separate Telegram destinations.
+5. Resolve sheet columns by header names, never fixed numeric positions.
+6. People records use stable IDs; inactive staff history is retained.
+7. Check `Notify?`, `Reachable?`, status and recipient IDs before messaging.
+8. Legacy Social/Design Workstream tabs direct users to Master Task Tracker.
+9. Job-description checks require an authoritative source; People Directory notes are not JDs.
+10. GA4/YouTube analytics remain read-only and private; Search Console is a separate scope decision.
+11. External API calls must not block the async event loop; retries and rate limits must be explicit.
+12. Production sends remain disabled until IDs, permissions, workbook headers and routing are verified.
+13. Inbound webhooks authenticate requests and enforce idempotency; payloads must not cause side effects until each event type has a separately reviewed handler.
+14. SQLite requires durable local storage and a single-writer deployment; use an external database before horizontal scaling.
 
-## Workbook schema verification
+## Outstanding production gates
 
-The supplied optimized workbook currently shows a compact schema that differs from the earlier bot-ready schema in the implementation notes. For example, its `People Directory` has `Person ID`, `Full Name`, `Team`, `Role`, `Email`, `Start Date`, `End Date`, `Status`, `Replacement For`, `Notes`; its `Master Task Tracker` has `Task ID`, `Task Name`, `Date Assigned`, `Team`, `Assigned To ID`, `Assigned To`, `Priority`, `Deadline`, `Status`, `% Complete`, `Output / Link`, `Remarks`. The live Google Sheet may differ; do not hard-code either variant until its actual headers are read.
-
-**Still to verify before enabling P2/P3/P5/P6:** live Google Sheet ID and service-account access, exact live `Master Task Tracker` headers, whether formula fields `Remind Now?` and `Escalate?` exist in the live sheet, authoritative Job Descriptions tab/file, core Telegram chat ID, single-instance scheduler deployment, GA4 property access, YouTube API key/channel ID, and whether analytics scope includes Search Console.
+- Verify live Google Sheet ID/service-account access, actual headers/formula flags, and authoritative Job Descriptions source.
+- Verify Telegram core/public chat IDs and single-instance deployment before enabling team workflows or schedules.
+- Verify GA4 property access and YouTube API key/channel ID before enabling analytics.
+- Verify webhook sender contract, HTTPS termination, secret rotation, persistent storage, and alerting before enabling inbound webhooks.
+- Search Console remains out of scope until its property and credentials are confirmed.
 
 ## Verification commands
 
@@ -107,7 +60,6 @@ source .venv/bin/activate
 pip install -e '.[dev]'
 ruff check .
 pytest --cov=app --cov-report=term-missing
+docker build -t polaris:local .
 uvicorn app.main:app --reload
 ```
-
-Open `http://127.0.0.1:8000/health/live` and `/health/ready`.
