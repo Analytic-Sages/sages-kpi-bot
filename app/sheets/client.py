@@ -120,6 +120,20 @@ class GoogleSheetsClient:
         except Exception as exc:
             raise GoogleSheetsError(f"Unable to open worksheet: {worksheet_name}") from exc
 
+    async def read_headers(self, worksheet_name: str) -> list[str]:
+        """Read and validate row 1 directly, even when a worksheet has no data rows."""
+        worksheet = self._worksheet(worksheet_name)
+        try:
+            raw_headers = await self._api_call(
+                lambda: worksheet.row_values(1),
+                context=f"Unable to read headers: {worksheet_name}",
+            )
+            return normalize_headers(raw_headers)
+        except (GoogleSheetsError, ValueError) as exc:
+            if isinstance(exc, GoogleSheetsError):
+                raise
+            raise GoogleSheetsError(f"Invalid worksheet headers: {worksheet_name}") from exc
+
     async def read_rows(self, worksheet_name: str) -> list[SheetRow]:
         """Read rows off the event loop and map values using the first row's headers."""
         worksheet = self._worksheet(worksheet_name)
