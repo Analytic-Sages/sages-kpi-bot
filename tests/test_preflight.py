@@ -15,7 +15,8 @@ def test_missing_headers_are_sorted_and_do_not_mutate_inputs():
 
 
 def test_preflight_schema_expectations_cover_core_sheets_and_safety_flags():
-    assert {"People Directory", "KPI Register", "Weekly KPI Log", "Master Task Tracker"} <= set(CORE_SHEETS)
+    expected_sheets = {"People Directory", "KPI Register", "Weekly KPI Log", "Master Task Tracker"}
+    assert expected_sheets <= set(CORE_SHEETS)
     assert "Notify?" in ACCOUNTABILITY_SAFETY_HEADERS["People Directory"]
     assert "Reachable?" in ACCOUNTABILITY_SAFETY_HEADERS["People Directory"]
     assert {"Remind Now?", "Escalate?"} <= ACCOUNTABILITY_SAFETY_HEADERS["Master Task Tracker"]
