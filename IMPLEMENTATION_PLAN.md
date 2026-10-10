@@ -13,7 +13,7 @@
 - [x] **P4 — Team workflows and role intelligence:** `/status`, `/goal`, `/blocker`, `/jd`; merged in PR #5.
 - [x] **P5 — Scheduled workflows:** Monday KPI snapshot (09:00 UTC), Tue–Fri focus prompt (09:30 UTC), Friday checkout (15:00 UTC); merged in PR #6. Live delivery remains gated on schema/routing/deployment verification.
 - [x] **P6 — Growth analytics:** read-only GA4 and YouTube metrics, private core-chat access, opt-in `/growth`; merged in PR #7. Provider credentials and property access remain to be verified.
-- [ ] **P7 — Webhooks, deployment, operations:** authenticated idempotent inbound event ledger, deployment runbook, operational health/logging, final acceptance tests.
+- [x] **P7 — Webhooks, deployment, operations:** authenticated idempotent inbound event ledger, deployment runbook, operational health/logging; merged in PR #8 and post-merge CI passed.
 
 ## P7 acceptance criteria
 
@@ -24,8 +24,18 @@
 - [x] Event payloads are not executed and are not stored; only metadata and a body hash are persisted.
 - [x] Health readiness reports webhook configuration state without claiming external connectivity.
 - [x] Deployment, secrets, persistence, single-instance, verification, and rollback guidance documented.
-- [ ] CI is green and the PR is reviewed/merged.
+- [x] CI is green and PR #8 is merged.
 - [ ] Validate webhook integration with the actual sender in staging; production use requires HTTPS, persistent storage, a rotated secret, monitoring, and a named owner.
+
+## P8 — Production readiness preflight
+
+- [x] Add `python -m app.preflight` read-only checks for configuration presence and the four core worksheet schemas.
+- [x] Report missing accountability formula/recipient safety headers as blockers.
+- [x] Keep secret values and individual sheet records out of preflight output.
+- [x] Add tests for schema comparison and blocker reporting.
+- [ ] Run the preflight against the live spreadsheet from the deployment environment.
+- [ ] Verify Telegram identity/routing, GA4/YouTube access, persistent SQLite storage, HTTPS, and single-instance operation.
+- [ ] Complete staging acceptance tests before enabling any live outbound workflows.
 
 ## Design constraints to preserve
 
