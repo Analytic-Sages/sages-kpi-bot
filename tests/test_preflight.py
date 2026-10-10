@@ -34,3 +34,44 @@ def test_report_returns_zero_without_blockers(capsys):
     output = capsys.readouterr().out
     assert result == 0
     assert "CONFIGURATION CHECK PASSED" in output
+
+
+from app.config import Settings
+from app.preflight import configuration_findings
+
+
+def test_preflight_accepts_oauth_configuration_without_service_account_file():
+    settings = Settings(
+        _env_file=None,
+        google_sheet_id="sheet-id",
+        google_oauth_client_id="client-id",
+        google_oauth_client_secret="client-secret",
+        google_oauth_refresh_token="refresh-token",
+    )
+    findings = configuration_findings(settings)
+    google_blockers = [
+        finding for finding in findings
+        if finding.component == "Google Sheets" and finding.severity == "BLOCKER"
+    ]
+    assert google_blockers == []
+    assert any(
+        finding.component == "Google Sheets"
+        and finding.severity == "INFO"
+        and "OAuth refresh-token" in finding.message
+        for finding in findings
+    )
+
+
+def test_preflight_flags_incomplete_oauth_configuration():
+    settings = Settings(
+        _env_file=None,
+        google_sheet_id="sheet-id",
+        google_oauth_client_id="client-id",
+    )
+    findings = configuration_findings(settings)
+    assert any(
+        finding.component == "Google Sheets"
+        and finding.severity == "BLOCKER"
+        and "configured together" in finding.message
+        for finding in findings
+    )
