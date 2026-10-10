@@ -1,6 +1,6 @@
 """Read-only production readiness preflight for Polaris.
 
-Run with the same environment and service-account file as the deployment:
+Run with the same environment and Google authentication settings as the deployment:
     python -m app.preflight
 
 The command never writes to Google Sheets, sends Telegram messages, or enables integrations.
@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from app.config import Settings, get_settings
-from app.sheets.client import GoogleSheetsClient, GoogleSheetsError
+from app.sheets.client import GoogleSheetsClient, GoogleSheetsError, google_auth_mode
 
 CORE_SHEETS: dict[str, set[str]] = {
     "People Directory": {
@@ -75,13 +75,20 @@ def configuration_findings(settings: Settings) -> list[Finding]:
     findings: list[Finding] = []
     if not settings.google_sheet_id:
         findings.append(Finding("BLOCKER", "Google Sheets", "GOOGLE_SHEET_ID is not configured."))
-    credentials = Path(settings.google_creds_path).expanduser()
-    if not credentials.is_file():
+    try:
+        auth_mode = google_auth_mode(settings)
+    except GoogleSheetsError as exc:
+        findings.append(Finding("BLOCKER", "Google Sheets", str(exc)))
+    else:
         findings.append(
             Finding(
-                "BLOCKER",
+                "INFO",
                 "Google Sheets",
-                "Google service-account credentials file is missing.",
+                (
+                    "OAuth refresh-token authentication is configured."
+                    if auth_mode == "oauth"
+                    else "Google credentials file is present; its type and access will be verified."
+                ),
             )
         )
 
@@ -244,7 +251,11 @@ def print_report(findings: list[Finding]) -> int:
 
 async def run_preflight(settings: Settings) -> int:
     findings = configuration_findings(settings)
-    if settings.google_sheet_id and Path(settings.google_creds_path).expanduser().is_file():
+    if settings.google_sheet_id:
+        try:
+            google_auth_mode(settings)
+        except GoogleSheetsError:
+            return print_report(findings)
         try:
             client = await asyncio.to_thread(GoogleSheetsClient.from_settings, settings)
             findings.extend(await sheet_findings(client))
@@ -253,8 +264,8 @@ async def run_preflight(settings: Settings) -> int:
                 Finding(
                     "BLOCKER",
                     "Google Sheets",
-                    "Could not authenticate or open the spreadsheet; check sharing and "
-                    "credentials.",
+                    "Could not authenticate or open the spreadsheet; check the configured "
+                    "OAuth settings or credentials file and spreadsheet sharing.",
                 )
             )
     return print_report(findings)
