@@ -8,7 +8,7 @@
 
 - [x] **P0 — Repository foundation:** package structure, configuration validation, logging, health endpoints, Dockerfile, CI, baseline tests.
 - [x] **P1 — Telegram/service foundation:** async Bot API client, command registration, polling loop, dry-run replies, startup/shutdown handling; CI green in PR #2.
-- [ ] **P2 — Google Sheets data layer:** header-driven reads/writes, schema validation, stable IDs, retry policy.
+- [x] **P2 — Google Sheets data layer:** header-driven reads/writes, schema validation, stable IDs, bounded retries; CI green in PR #3. Live workbook/service-account verification remains a production gate.
 - [ ] **P3 — Accountability engine:** formula-driven task flags, reminder receipts, cooldowns, per-day limits, escalation safety.
 - [ ] **P4 — Team workflows and role intelligence:** `/status`, `/goal`, `/blocker`, `/jd`, role/people matching, drift/bottleneck checks.
 - [ ] **P5 — Scheduled workflows:** Monday KPI broadcast, Tue–Fri focus prompt, Friday checkout, timezone-aware scheduler.
@@ -34,11 +34,21 @@
 
 ## P2 acceptance criteria
 
-- [ ] Read and write records by header name rather than fixed column indexes.
-- [ ] Reject blank/duplicate headers and unknown write columns.
-- [ ] Reject ambiguous stable-ID matches instead of updating multiple people/tasks.
-- [ ] Keep blocking Google client calls off the async event loop and retry failed API calls with bounded attempts.
+- [x] Read and write records by header name rather than fixed column indexes.
+- [x] Reject blank/duplicate headers and unknown write columns.
+- [x] Reject ambiguous stable-ID matches instead of updating multiple people/tasks.
+- [x] Keep blocking Google client calls off the async event loop and retry failed API calls with bounded attempts.
 - [ ] Verify the live workbook's exact headers, formula fields, service-account access, and authoritative Job Descriptions source before enabling task reminders.
+
+## P3 acceptance criteria
+
+- [x] Reminder eligibility requires formula-driven Remind Now? and Escalate? fields; missing flags block safely.
+- [x] Verify active status, Notify?, Reachable?, owner identity, and recipient chat ID before a send.
+- [x] Escalations route to Manager Chat ID; missing recipient IDs block delivery.
+- [x] Persist successful delivery receipts in SQLite; failed sends release their claim and do not create receipts.
+- [x] Enforce cooldowns, a per-task daily cap, and expiring claims to prevent concurrent duplicate sends.
+- [x] Dry-run performs no send and creates no receipt.
+- [ ] Wire into live task polling only after workbook headers, formula flags, IDs, and service-account permissions are verified.
 
 ## Design constraints to preserve
 
