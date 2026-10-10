@@ -4,7 +4,8 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any, Awaitable, Callable
+from collections.abc import Awaitable, Callable
+from typing import Any
 from zoneinfo import ZoneInfo
 
 from app.accountability.receipts import SQLiteReceiptStore
@@ -65,7 +66,9 @@ def evaluate_task(
     if not status or status.casefold() != "active":
         return ReminderDecision(False, "owner_not_active", task_id, task_name)
     if "Notify?" not in person or "Reachable?" not in person:
-        return ReminderDecision(False, "people_schema_missing_notification_flags", task_id, task_name)
+        return ReminderDecision(
+            False, "people_schema_missing_notification_flags", task_id, task_name
+        )
     if not _truthy(person.get("Notify?")):
         return ReminderDecision(False, "owner_notifications_disabled", task_id, task_name)
     if not _truthy(person.get("Reachable?")):
@@ -126,7 +129,12 @@ class AccountabilityEngine:
         if not decision.eligible:
             return DeliveryResult("skipped", decision.reason)
         if not all(
-            [decision.task_id, decision.task_name, decision.reminder_type, decision.recipient_chat_id]
+            [
+                decision.task_id,
+                decision.task_name,
+                decision.reminder_type,
+                decision.recipient_chat_id,
+            ]
         ):
             return DeliveryResult("skipped", "decision_missing_delivery_fields")
         instant = now or datetime.now(self.timezone)

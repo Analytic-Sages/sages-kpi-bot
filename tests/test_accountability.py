@@ -107,7 +107,9 @@ async def test_failed_delivery_does_not_write_receipt_and_releases_claim(tmp_pat
 @pytest.mark.asyncio
 async def test_ineligible_decision_never_sends(tmp_path):
     sender = AsyncMock()
-    engine = AccountabilityEngine(SQLiteReceiptStore(tmp_path / "receipts.db"), sender, dry_run=False)
+    engine = AccountabilityEngine(
+        SQLiteReceiptStore(tmp_path / "receipts.db"), sender, dry_run=False
+    )
     result = await engine.process(ReminderDecision(False, "owner_not_active"))
     assert result.status == "skipped"
     sender.assert_not_awaited()

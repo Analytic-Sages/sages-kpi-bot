@@ -62,7 +62,14 @@ class SQLiteReceiptStore:
         max_per_day: int,
     ) -> str | None:
         return await asyncio.to_thread(
-            self._claim, task_id, recipient_chat_id, reminder_type, now, day_start, cooldown, max_per_day
+            self._claim,
+            task_id,
+            recipient_chat_id,
+            reminder_type,
+            now,
+            day_start,
+            cooldown,
+            max_per_day,
         )
 
     def _claim(
@@ -88,10 +95,15 @@ class SQLiteReceiptStore:
             if latest and datetime.fromisoformat(latest["sent_at"]) > now - cooldown:
                 return None
             count = connection.execute(
-                "SELECT COUNT(*) AS total FROM reminder_receipts WHERE task_id = ? AND sent_at >= ?",
+                "SELECT COUNT(*) AS total FROM reminder_receipts "
+                "WHERE task_id = ? AND sent_at >= ?",
                 (task_id, day_start.isoformat()),
             ).fetchone()["total"]
-            if count >= max_per_day:
+            pending = connection.execute(
+                "SELECT COUNT(*) AS total FROM reminder_claims WHERE task_id = ?",
+                (task_id,),
+            ).fetchone()["total"]
+            if count + pending >= max_per_day:
                 return None
             try:
                 connection.execute(
@@ -157,7 +169,8 @@ class SQLiteReceiptStore:
     def _count_for_task_on_day(self, task_id: str, day_start: datetime) -> int:
         with self._connect() as connection:
             row = connection.execute(
-                "SELECT COUNT(*) AS total FROM reminder_receipts WHERE task_id = ? AND sent_at >= ?",
+                "SELECT COUNT(*) AS total FROM reminder_receipts "
+                "WHERE task_id = ? AND sent_at >= ?",
                 (task_id, day_start.isoformat()),
             ).fetchone()
             return int(row["total"])
