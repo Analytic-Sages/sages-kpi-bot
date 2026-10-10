@@ -110,7 +110,10 @@ class GoogleSheetsClient:
         headers = normalize_headers(grid[0])
         if key_header not in headers:
             raise GoogleSheetsError(f"Key header {key_header!r} missing from {worksheet_name}")
-        validate_record_fields(values, headers)
+        try:
+            validate_record_fields(values, headers)
+        except ValueError as exc:
+            raise GoogleSheetsError(str(exc)) from exc
         key_index = headers.index(key_header)
         matches = [
             index + 1
@@ -148,7 +151,10 @@ class GoogleSheetsClient:
         if not grid:
             raise GoogleSheetsError(f"Worksheet has no headers: {worksheet_name}")
         headers = normalize_headers(grid[0])
-        validate_record_fields(values, headers)
+        try:
+            validate_record_fields(values, headers)
+        except ValueError as exc:
+            raise GoogleSheetsError(str(exc)) from exc
         row = [
             "" if values.get(header) is None else str(values.get(header, ""))
             for header in headers
