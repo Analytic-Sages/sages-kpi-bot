@@ -14,6 +14,34 @@ uvicorn app.main:app --reload
 
 The safe defaults are intentional: `DRY_RUN=true`; team workflows, scheduled workflows, analytics, and inbound webhooks are disabled unless explicitly enabled. The app does not need live credentials to run health checks.
 
+## Google Sheets authentication
+
+The Sheets client supports these authentication modes, in priority order:
+
+1. **OAuth refresh token** — set `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, and `GOOGLE_OAUTH_REFRESH_TOKEN` together. This is the supported no-service-account-key path for Render.
+2. **Google credentials file** — `GOOGLE_CREDS_PATH` may point to a service-account JSON file or a Google external-account/Workload Identity Federation credential configuration. Keep credential files out of source control.
+
+Partial OAuth configuration is rejected rather than silently falling back to a file. Authentication errors do not print tokens, client secrets, refresh tokens, or credential file contents.
+
+### Configure OAuth for Render
+
+Render's documented managed OIDC integrations currently list AWS, Anthropic, and OpenAI, not Google Cloud. For a Render deployment that cannot use a Google service-account private key, configure OAuth using a dedicated Google account that has access to the tracker.
+
+1. In Google Cloud Console, select the project and enable the Google Sheets API.
+2. Configure the OAuth consent screen. Use an Internal audience when available for your Google Workspace organization; otherwise configure the External audience and complete the publishing/verification requirements Google presents for the Sheets scope. Do not leave a production integration in External Testing mode: refresh tokens issued to external apps in Testing can expire after seven days.
+3. Create an OAuth client ID. If using OAuth 2.0 Playground to obtain the initial refresh token, create a Web application OAuth client and add `https://developers.google.com/oauthplayground` as an authorized redirect URI.
+4. Open [OAuth 2.0 Playground](https://developers.google.com/oauthplayground), open its settings, enable **Use your own OAuth credentials**, and enter the OAuth client ID and secret. In Step 1, request `https://www.googleapis.com/auth/spreadsheets`; authorize using the dedicated Google account that should own Polaris's access. Exchange the authorization code in Step 2 and copy the refresh token from the token response. Treat it as a long-lived secret.
+5. Share the KPI & Growth Tracker with that dedicated account. Grant Viewer access for initial read-only validation; grant Editor only if a later approved workflow genuinely needs to write to the spreadsheet.
+6. In Render Dashboard → Polaris service → Environment, add these variables using Render's secret/environment-variable UI:
+   - `GOOGLE_SHEET_ID` — spreadsheet ID from the Google Sheets URL.
+   - `GOOGLE_OAUTH_CLIENT_ID` — OAuth client ID.
+   - `GOOGLE_OAUTH_CLIENT_SECRET` — OAuth client secret.
+   - `GOOGLE_OAUTH_REFRESH_TOKEN` — refresh token.
+   - `DRY_RUN=true`.
+7. Keep `ENABLE_TEAM_WORKFLOWS=false`, `ENABLE_SCHEDULED_WORKFLOWS=false`, `ENABLE_ANALYTICS=false`, and `ENABLE_WEBHOOKS=false` until staging checks are complete. Redeploy after saving the Render environment.
+
+Use a dedicated account rather than a personal employee account where practical. The refresh token is still a sensitive credential: never commit it, put it in logs, or paste it into chat. Rotate/re-authorize it if revoked. If Google requires OAuth app verification for the chosen audience/scope, complete that process before relying on the integration in production.
+
 ## Health checks
 
 - `GET /` — service identity.
@@ -22,13 +50,13 @@ The safe defaults are intentional: `DRY_RUN=true`; team workflows, scheduled wor
 
 ## Read-only production preflight
 
-Run the preflight from the same environment that will run Polaris, with the deployment's environment variables and service-account credentials available:
+Run the preflight from the same environment that will run Polaris, with the deployment's Google authentication settings available:
 
 ```bash
 python -m app.preflight
 ```
 
-The command checks required environment configuration without displaying secret values, opens the configured spreadsheet in read-only mode, verifies core worksheet headers, and reports the accountability safety fields required for reminders. It never writes to Google Sheets, sends Telegram messages, or enables integrations. A nonzero exit code means one or more blockers remain.
+The command checks required environment configuration without displaying secret values, authenticates to and opens the configured spreadsheet in read-only mode, verifies core worksheet headers, and reports the accountability safety fields required for reminders. It never writes to Google Sheets, sends Telegram messages, or enables integrations. A nonzero exit code means one or more blockers remain.
 
 The preflight deliberately checks only headers and access, not individual people's rows. A successful report does not prove that chat IDs are correct, Telegram delivery works, analytics APIs are authorized, HTTPS is configured, SQLite storage is durable, or only one service instance is running. Complete the manual staging checklist below before enabling live workflows.
 
@@ -70,7 +98,7 @@ Responses: `202` for first acceptance, `200` for an identical duplicate, `401` f
 1. Deploy the Docker image or install the project in a managed Python 3.12 environment.
 2. Set `PORT` to the hosting platform's injected port. Keep a single app instance while the in-process Telegram poller and APScheduler are enabled.
 3. Mount persistent writable storage for `data/` (or configure database paths to a persistent volume). SQLite is not suitable for ephemeral filesystems or multiple independent app replicas.
-4. Configure secrets through the platform secret manager: `TELEGRAM_BOT_TOKEN`, Google credentials, `WEBHOOK_SECRET`, and API keys. Never commit credential JSON files or `.env`.
+4. Configure secrets through the platform secret manager: `TELEGRAM_BOT_TOKEN`, Google OAuth settings (or an approved credential file), `WEBHOOK_SECRET`, and API keys. Never commit credential JSON files or `.env`.
 5. Start with `DRY_RUN=true`, `ENABLE_TEAM_WORKFLOWS=false`, `ENABLE_SCHEDULED_WORKFLOWS=false`, `ENABLE_ANALYTICS=false`, and `ENABLE_WEBHOOKS=false`.
 6. Verify `/health/live` and `/health/ready`, inspect structured logs, and verify the exact Google Sheet headers/permissions and Telegram private/core chat routing.
 7. Validate GA4 property access, YouTube channel ID/API key, webhook signing from a trusted sender, duplicate delivery, and persistent SQLite behavior in staging.
