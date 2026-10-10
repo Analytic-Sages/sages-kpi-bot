@@ -10,8 +10,8 @@
 - [x] **P1 — Telegram/service foundation:** async Bot API client, command registration, polling loop, dry-run replies, startup/shutdown handling; CI green in PR #2.
 - [x] **P2 — Google Sheets data layer:** header-driven reads/writes, schema validation, stable IDs, bounded retries; CI green in PR #3. Live workbook/service-account verification remains a production gate.
 - [x] **P3 — Accountability engine:** formula-driven task flags, reminder receipts, cooldowns, per-day limits, escalation safety; merged in PR #4. Live task polling remains gated on workbook verification.
-- [ ] **P4 — Team workflows and role intelligence:** `/status`, `/goal`, `/blocker`, `/jd`, role/people matching, drift/bottleneck checks.
-- [ ] **P5 — Scheduled workflows:** Monday KPI broadcast, Tue–Fri focus prompt, Friday checkout, timezone-aware scheduler.
+- [x] **P4 — Team workflows and role intelligence:** `/status`, `/goal`, `/blocker`, `/jd`, role/people matching, drift/bottleneck checks.
+- [ ] **P5 — Scheduled workflows:** Monday KPI broadcast (09:00 UTC), Tue–Fri focus prompt (09:30 UTC), Friday checkout (15:00 UTC), timezone-aware scheduler.
 - [ ] **P6 — Growth analytics:** GA4/Search Console as explicitly configured, YouTube channel metrics; private/public routing enforced.
 - [ ] **P7 — Webhooks, deployment, operations:** authenticated idempotent events, observability, deployment runbook, final acceptance tests.
 
@@ -60,6 +60,14 @@
 - [ ] Enable team workflows only after verifying live Telegram identity mapping, KPI fields, blocker destination, authoritative JD worksheet, and service-account write permissions.
 - [ ] Add drift/bottleneck checks after source data and ownership fields are verified.
 
+## P5 acceptance criteria
+
+- [x] Monday KPI snapshot aggregates the latest weekly result per KPI and routes only to the configured private core chat.
+- [x] Tuesday–Friday focus prompt and Friday checkout are scheduled with UTC CronTriggers; Friday checkout runs at 15:00 UTC to avoid colliding with the 09:30 focus prompt.
+- [x] Scheduler is opt-in with `ENABLE_SCHEDULED_WORKFLOWS=false` by default and respects `DRY_RUN=true`.
+- [x] Jobs use coalescing, a one-instance limit, and a bounded misfire grace period.
+- [ ] Verify the live KPI Register/Weekly KPI Log schemas, core chat ID, single-instance deployment, and delivery window before enabling scheduled workflows.
+
 ## Design constraints to preserve
 
 1. Google Sheets remains the operational source of truth for team/role/KPI/task state.
@@ -79,7 +87,7 @@
 
 The supplied optimized workbook currently shows a compact schema that differs from the earlier bot-ready schema in the implementation notes. For example, its `People Directory` has `Person ID`, `Full Name`, `Team`, `Role`, `Email`, `Start Date`, `End Date`, `Status`, `Replacement For`, `Notes`; its `Master Task Tracker` has `Task ID`, `Task Name`, `Date Assigned`, `Team`, `Assigned To ID`, `Assigned To`, `Priority`, `Deadline`, `Status`, `% Complete`, `Output / Link`, `Remarks`. The live Google Sheet may differ; do not hard-code either variant until its actual headers are read.
 
-**Still to verify before P2/P3:** live Google Sheet ID and service-account access, exact live `Master Task Tracker` headers, whether formula fields `Remind Now?` and `Escalate?` exist in the live sheet, authoritative Job Descriptions tab/file, and whether analytics scope includes Search Console in addition to GA4/YouTube.
+**Still to verify before P2/P3/P5:** live Google Sheet ID and service-account access, exact live `Master Task Tracker` headers, whether formula fields `Remind Now?` and `Escalate?` exist in the live sheet, authoritative Job Descriptions tab/file, core Telegram chat ID, single-instance scheduler deployment, and whether analytics scope includes Search Console in addition to GA4/YouTube.
 
 ## Verification commands
 
