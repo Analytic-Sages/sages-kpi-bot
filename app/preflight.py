@@ -78,13 +78,21 @@ def configuration_findings(settings: Settings) -> list[Finding]:
     credentials = Path(settings.google_creds_path).expanduser()
     if not credentials.is_file():
         findings.append(
-            Finding("BLOCKER", "Google Sheets", "Google service-account credentials file is missing.")
+            Finding(
+                "BLOCKER",
+                "Google Sheets",
+                "Google service-account credentials file is missing.",
+            )
         )
 
     if settings.enable_team_workflows or settings.enable_scheduled_workflows:
         if not settings.telegram_bot_token:
             findings.append(
-                Finding("BLOCKER", "Telegram", "Telegram workflows are enabled but the bot token is missing.")
+                Finding(
+                    "BLOCKER",
+                    "Telegram",
+                    "Telegram workflows are enabled but the bot token is missing.",
+                )
             )
         if not settings.telegram_core_chat_id:
             findings.append(
@@ -112,7 +120,9 @@ def configuration_findings(settings: Settings) -> list[Finding]:
                 )
             )
     if settings.enable_webhooks and not settings.webhook_secret:
-        findings.append(Finding("BLOCKER", "Webhooks", "Webhooks are enabled without WEBHOOK_SECRET."))
+        findings.append(
+            Finding("BLOCKER", "Webhooks", "Webhooks are enabled without WEBHOOK_SECRET.")
+        )
 
     for label, raw_path in (
         ("Reminder receipts", settings.reminder_receipts_db_path),
@@ -131,14 +141,19 @@ def configuration_findings(settings: Settings) -> list[Finding]:
 
     if settings.dry_run:
         findings.append(
-            Finding("INFO", "Safety", "DRY_RUN is enabled; outbound Telegram sends should remain suppressed.")
+            Finding(
+                "INFO",
+                "Safety",
+                "DRY_RUN is enabled; outbound Telegram sends should remain suppressed.",
+            )
         )
     else:
         findings.append(
             Finding(
                 "WARNING",
                 "Safety",
-                "DRY_RUN is disabled. Confirm routing, recipients, live schema, and approval before operation.",
+                "DRY_RUN is disabled. Confirm routing, recipients, live schema, and approval "
+                "before operation.",
             )
         )
     if not settings.enable_team_workflows:
@@ -153,7 +168,8 @@ def configuration_findings(settings: Settings) -> list[Finding]:
         Finding(
             "WARNING",
             "Deployment",
-            "This check cannot prove that SQLite storage is durable or that only one app instance is running.",
+            "This check cannot prove that SQLite storage is durable or that only one app "
+            "instance is running.",
         )
     )
     return findings
@@ -237,7 +253,8 @@ async def run_preflight(settings: Settings) -> int:
                 Finding(
                     "BLOCKER",
                     "Google Sheets",
-                    "Could not authenticate or open the spreadsheet; check sharing and credentials.",
+                    "Could not authenticate or open the spreadsheet; check sharing and "
+                    "credentials.",
                 )
             )
     return print_report(findings)
