@@ -20,6 +20,9 @@ class Settings(BaseSettings):
 
     google_sheet_id: str | None = None
     google_creds_path: str = "credentials/google-service-account.json"
+    enable_team_workflows: bool = False
+    job_descriptions_worksheet: str | None = None
+    blocker_log_worksheet: str | None = None
 
     ga4_property_id: str | None = None
     youtube_channel_id: str | None = None

@@ -8,6 +8,8 @@ from fastapi.responses import JSONResponse
 
 from app.config import get_settings
 from app.logging_config import configure_logging
+from app.sheets.client import GoogleSheetsClient
+from app.team.workflows import TeamWorkflowService
 from app.telegram.bot import TelegramBot
 from app.telegram.client import TelegramClient
 
@@ -29,8 +31,22 @@ async def lifespan(_: FastAPI):
     telegram_bot: TelegramBot | None = None
     telegram_task: asyncio.Task[None] | None = None
     if settings.telegram_bot_token:
+        workflows: TeamWorkflowService | None = None
+        if settings.enable_team_workflows:
+            sheets = await asyncio.to_thread(GoogleSheetsClient.from_settings, settings)
+            workflows = TeamWorkflowService(
+                sheets,
+                job_descriptions_worksheet=settings.job_descriptions_worksheet,
+                blocker_worksheet=settings.blocker_log_worksheet,
+            )
+            logger.warning(
+                "team_workflows_enabled dry_run=%s jd_source_configured=%s blocker_log_configured=%s",
+                settings.dry_run,
+                bool(settings.job_descriptions_worksheet),
+                bool(settings.blocker_log_worksheet),
+            )
         telegram_client = TelegramClient(settings.telegram_bot_token)
-        telegram_bot = TelegramBot(telegram_client, settings)
+        telegram_bot = TelegramBot(telegram_client, settings, workflows=workflows)
         try:
             await telegram_bot.start()
             telegram_task = asyncio.create_task(telegram_bot.run(), name="polaris-telegram-polling")
@@ -86,7 +102,11 @@ async def readiness() -> JSONResponse:
             "status": "ready",
             "integrations": {
                 "telegram": "configured" if settings.telegram_bot_token else "not_configured",
-                "google_sheets": "not_configured_or_not_implemented",
+                "google_sheets": (
+                    "enabled_for_team_workflows"
+                    if settings.enable_team_workflows
+                    else "not_enabled"
+                ),
                 "analytics": "not_implemented",
             },
         },
