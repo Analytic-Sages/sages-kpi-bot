@@ -187,7 +187,7 @@ async def sheet_findings(client: GoogleSheetsClient) -> list[Finding]:
     findings: list[Finding] = []
     for worksheet_name, required in CORE_SHEETS.items():
         try:
-            rows = await client.read_rows(worksheet_name)
+            headers = await client.read_headers(worksheet_name)
         except GoogleSheetsError:
             findings.append(
                 Finding(
@@ -197,7 +197,7 @@ async def sheet_findings(client: GoogleSheetsClient) -> list[Finding]:
                 )
             )
             continue
-        actual = set(rows[0].values) if rows else set()
+        actual = set(headers)
         missing = missing_headers(actual, required)
         if missing:
             findings.append(
@@ -212,11 +212,11 @@ async def sheet_findings(client: GoogleSheetsClient) -> list[Finding]:
 
     for worksheet_name, required in ACCOUNTABILITY_SAFETY_HEADERS.items():
         try:
-            rows = await client.read_rows(worksheet_name)
+            headers = await client.read_headers(worksheet_name)
         except GoogleSheetsError:
             # The core-sheet check already reports this as a blocker.
             continue
-        actual = set(rows[0].values) if rows else set()
+        actual = set(headers)
         missing = missing_headers(actual, required)
         if missing:
             findings.append(
