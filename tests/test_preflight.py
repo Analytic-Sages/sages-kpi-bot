@@ -1,7 +1,9 @@
+from app.config import Settings
 from app.preflight import (
     ACCOUNTABILITY_SAFETY_HEADERS,
     CORE_SHEETS,
     Finding,
+    configuration_findings,
     missing_headers,
     print_report,
 )
@@ -36,9 +38,6 @@ def test_report_returns_zero_without_blockers(capsys):
     assert "CONFIGURATION CHECK PASSED" in output
 
 
-from app.config import Settings
-from app.preflight import configuration_findings
-
 
 def test_preflight_accepts_oauth_configuration_without_service_account_file():
     settings = Settings(
@@ -50,7 +49,8 @@ def test_preflight_accepts_oauth_configuration_without_service_account_file():
     )
     findings = configuration_findings(settings)
     google_blockers = [
-        finding for finding in findings
+        finding
+        for finding in findings
         if finding.component == "Google Sheets" and finding.severity == "BLOCKER"
     ]
     assert google_blockers == []
