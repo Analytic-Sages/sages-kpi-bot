@@ -7,7 +7,7 @@
 ## Progress tracker
 
 - [x] **P0 — Repository foundation:** package structure, configuration validation, logging, health endpoints, Dockerfile, CI, baseline tests.
-- [ ] **P1 — Telegram/service foundation:** bot lifecycle, command registration, message routing, startup/shutdown handling.
+- [x] **P1 — Telegram/service foundation:** async Bot API client, command registration, polling loop, dry-run replies, startup/shutdown handling; CI green in PR #2.
 - [ ] **P2 — Google Sheets data layer:** header-driven reads/writes, schema validation, stable IDs, retry policy.
 - [ ] **P3 — Accountability engine:** formula-driven task flags, reminder receipts, cooldowns, per-day limits, escalation safety.
 - [ ] **P4 — Team workflows and role intelligence:** `/status`, `/goal`, `/blocker`, `/jd`, role/people matching, drift/bottleneck checks.
@@ -24,6 +24,22 @@
 - [x] Readiness response does not falsely claim external integrations are connected.
 - [x] Local Docker image definition is included.
 
+## P1 acceptance criteria
+
+- [x] Telegram commands are registered without hard-coded credentials.
+- [x] Polling is isolated from the HTTP event loop and handles recoverable API errors.
+- [x] Replies respect `DRY_RUN` and no real sends occur by default.
+- [x] Startup and shutdown clean up the polling task and HTTP client.
+- [x] Ruff and pytest pass in CI.
+
+## P2 acceptance criteria
+
+- [ ] Read and write records by header name rather than fixed column indexes.
+- [ ] Reject blank/duplicate headers and unknown write columns.
+- [ ] Reject ambiguous stable-ID matches instead of updating multiple people/tasks.
+- [ ] Keep blocking Google client calls off the async event loop and retry failed API calls with bounded attempts.
+- [ ] Verify the live workbook's exact headers, formula fields, service-account access, and authoritative Job Descriptions source before enabling task reminders.
+
 ## Design constraints to preserve
 
 1. Google Sheets remains the operational source of truth for team/role/KPI/task state.
@@ -39,15 +55,11 @@
 11. External API calls must not block the async event loop; retry and rate-limit handling must be explicit.
 12. All production sends are disabled until IDs, permissions, workbook headers, and routing are verified.
 
-## Known workbook schema from supplied update
+## Workbook schema verification
 
-### People Directory
-`Person ID`, `Full Name`, `Team`, `Role`, `Email`, `Telegram Handle`, `Telegram Chat ID`, `Reports To ID`, `Start Date`, `End Date`, `Status`, `Replacement For`, `Notify?`, `Notes`, `Reachable?`, `Manager Chat ID`, `Data Check`, `Last Digest Sent At`
+The supplied optimized workbook currently shows a compact schema that differs from the earlier bot-ready schema in the implementation notes. For example, its `People Directory` has `Person ID`, `Full Name`, `Team`, `Role`, `Email`, `Start Date`, `End Date`, `Status`, `Replacement For`, `Notes`; its `Master Task Tracker` has `Task ID`, `Task Name`, `Date Assigned`, `Team`, `Assigned To ID`, `Assigned To`, `Priority`, `Deadline`, `Status`, `% Complete`, `Output / Link`, `Remarks`. The live Google Sheet may differ; do not hard-code either variant until its actual headers are read.
 
-### KPI Register
-`KPI ID`, `Team`, `Role`, `KPI`, `Definition / Measurement`, `Direction`, `Frequency`, `Owner Person ID`, `Owner Name`, `Target`, `Unit`, `Data Source`, `Active?`, `Period Start`, `Check-in Due Date`, `Check-in Status`, `Notes`
-
-**Still to verify before P2/P3:** exact `Master Task Tracker` headers, authoritative Job Descriptions tab/file, formulas and expected values for reminder/escalation flags, Google service-account access, and whether the analytics scope includes Search Console in addition to GA4/YouTube.
+**Still to verify before P2/P3:** live Google Sheet ID and service-account access, exact live `Master Task Tracker` headers, whether formula fields `Remind Now?` and `Escalate?` exist in the live sheet, authoritative Job Descriptions tab/file, and whether analytics scope includes Search Console in addition to GA4/YouTube.
 
 ## Verification commands
 
