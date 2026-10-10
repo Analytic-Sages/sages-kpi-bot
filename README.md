@@ -20,6 +20,18 @@ The safe defaults are intentional: `DRY_RUN=true`; team workflows, scheduled wor
 - `GET /health/live` — process liveness.
 - `GET /health/ready` — configured/enabled integration flags. This is not a provider connectivity test.
 
+## Read-only production preflight
+
+Run the preflight from the same environment that will run Polaris, with the deployment's environment variables and service-account credentials available:
+
+```bash
+python -m app.preflight
+```
+
+The command checks required environment configuration without displaying secret values, opens the configured spreadsheet in read-only mode, verifies core worksheet headers, and reports the accountability safety fields required for reminders. It never writes to Google Sheets, sends Telegram messages, or enables integrations. A nonzero exit code means one or more blockers remain.
+
+The preflight deliberately checks only headers and access, not individual people's rows. A successful report does not prove that chat IDs are correct, Telegram delivery works, analytics APIs are authorized, HTTPS is configured, SQLite storage is durable, or only one service instance is running. Complete the manual staging checklist below before enabling live workflows.
+
 ## Inbound webhook contract
 
 `POST /webhooks/events` is disabled unless `ENABLE_WEBHOOKS=true` and `WEBHOOK_SECRET` is configured.
