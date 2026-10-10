@@ -3,8 +3,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from pathlib import Path
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any, TypeVar
 
 import gspread
