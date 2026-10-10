@@ -7,6 +7,7 @@ import hmac
 import json
 import re
 import sqlite3
+from contextlib import closing
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -80,7 +81,7 @@ class SQLiteWebhookEventStore:
         if self.database_path == ":memory:":
             raise ValueError("Use a file-backed database so webhook IDs persist")
         Path(self.database_path).expanduser().parent.mkdir(parents=True, exist_ok=True)
-        with self._connect() as connection:
+        with closing(self._connect()) as connection, connection:
             connection.execute("PRAGMA journal_mode=WAL")
             connection.execute(
                 """CREATE TABLE IF NOT EXISTS webhook_events (

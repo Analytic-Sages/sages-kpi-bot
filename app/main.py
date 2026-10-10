@@ -170,7 +170,7 @@ async def receive_webhook(request: Request) -> JSONResponse:
         return JSONResponse(status_code=404, content={"detail": "Not found"})
     if not settings.webhook_secret:
         logger.error("webhook_rejected reason=missing_secret")
-        return JSONResponse(status_code=503, content={"detail": "Webhook receiver is misconfigured"})
+        return JSONResponse(\n            status_code=503,\n            content={"detail": "Webhook receiver is misconfigured"},\n        )
 
     body = await request.body()
     if len(body) > settings.webhook_max_body_bytes:
@@ -202,7 +202,7 @@ async def receive_webhook(request: Request) -> JSONResponse:
         first_delivery = await store.record(event_id, event_type, body)
     except WebhookConflictError:
         logger.warning("webhook_rejected reason=event_id_conflict event_id=%s", event_id)
-        return JSONResponse(status_code=409, content={"detail": "Event ID conflicts with prior delivery"})
+        return JSONResponse(\n            status_code=409,\n            content={"detail": "Event ID conflicts with prior delivery"},\n        )
     except (OSError, RuntimeError, sqlite3.Error):
         logger.exception("webhook_store_failed event_id=%s", event_id)
         return JSONResponse(status_code=503, content={"detail": "Webhook event store unavailable"})
