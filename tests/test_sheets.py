@@ -2,7 +2,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from app.sheets.client import GoogleSheetsClient, GoogleSheetsError
+from app.config import Settings
+from app.sheets.client import GoogleSheetsClient, GoogleSheetsError, google_auth_mode
 from app.sheets.schema import SheetSchemaError, normalize_headers, rows_from_values
 
 
@@ -90,9 +91,6 @@ async def test_append_record_aligns_values_to_headers():
         ["Write brief", "T002", "Not Started"], value_input_option="USER_ENTERED"
     )
 
-
-from app.config import Settings
-from app.sheets.client import google_auth_mode
 
 
 def test_google_auth_mode_accepts_complete_oauth_configuration():
