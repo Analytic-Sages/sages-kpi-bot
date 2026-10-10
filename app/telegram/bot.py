@@ -6,26 +6,33 @@ import logging
 from typing import Any
 
 from app.config import Settings
+from app.team.workflows import TeamWorkflowService
 from app.telegram.client import TelegramAPIError, TelegramClient
 
 logger = logging.getLogger(__name__)
 
 HELP_TEXT = (
-    "Polaris helps the Analytic Sages team stay aligned on goals and accountability.\\n\\n"
-    "Available commands:\\n"
-    "/status — view your accountability status (coming in a later rollout)\\n"
-    "/goal — record a KPI goal (coming in a later rollout)\\n"
-    "/blocker — report a blocker (coming in a later rollout)\\n"
-    "/jd — check role alignment (coming in a later rollout)"
+    "Polaris helps the Analytic Sages team stay aligned on goals and accountability.\n\n"
+    "Available commands:\n"
+    "/status — view your accountability status\n"
+    "/goal <KPI name> <target> — update your assigned KPI target\n"
+    "/blocker <description> — report a blocker\n"
+    "/jd [name or @handle] — view an authoritative role description"
 )
 
 
 class TelegramBot:
     """Long-polling bot runner. Does not send messages in DRY_RUN mode."""
 
-    def __init__(self, client: TelegramClient, settings: Settings) -> None:
+    def __init__(
+        self,
+        client: TelegramClient,
+        settings: Settings,
+        workflows: TeamWorkflowService | None = None,
+    ) -> None:
         self.client = client
         self.settings = settings
+        self.workflows = workflows
         self._stop = asyncio.Event()
         self._offset: int | None = None
 
@@ -72,7 +79,9 @@ class TelegramBot:
         if not isinstance(chat_id, (int, str)):
             return
 
-        command = text.strip().split(maxsplit=1)[0].split("@", maxsplit=1)[0].lower()
+        parts = text.strip().split(maxsplit=1)
+        command = parts[0].split("@", maxsplit=1)[0].lower()
+        args = parts[1].strip() if len(parts) > 1 else ""
         if command not in {"/start", "/help", "/status", "/goal", "/blocker", "/jd"}:
             return
 
@@ -85,10 +94,13 @@ class TelegramBot:
         )
         if command in {"/start", "/help"}:
             reply = HELP_TEXT
+        elif self.workflows is not None:
+            reply = await self.workflows.handle(command, args, chat_id)
         else:
             reply = (
-                "This command is registered but is not enabled yet. "
-                "Polaris is being rolled out in stages."
+                "Team workflows are not enabled yet. An administrator must verify the live "
+                "Google Sheet schema, Telegram identity mapping, and role-description source "
+                "before Polaris can read or change team data."
             )
         await self._reply(chat_id, reply)
 

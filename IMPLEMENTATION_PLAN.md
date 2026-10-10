@@ -9,7 +9,7 @@
 - [x] **P0 — Repository foundation:** package structure, configuration validation, logging, health endpoints, Dockerfile, CI, baseline tests.
 - [x] **P1 — Telegram/service foundation:** async Bot API client, command registration, polling loop, dry-run replies, startup/shutdown handling; CI green in PR #2.
 - [x] **P2 — Google Sheets data layer:** header-driven reads/writes, schema validation, stable IDs, bounded retries; CI green in PR #3. Live workbook/service-account verification remains a production gate.
-- [ ] **P3 — Accountability engine:** formula-driven task flags, reminder receipts, cooldowns, per-day limits, escalation safety.
+- [x] **P3 — Accountability engine:** formula-driven task flags, reminder receipts, cooldowns, per-day limits, escalation safety; merged in PR #4. Live task polling remains gated on workbook verification.
 - [ ] **P4 — Team workflows and role intelligence:** `/status`, `/goal`, `/blocker`, `/jd`, role/people matching, drift/bottleneck checks.
 - [ ] **P5 — Scheduled workflows:** Monday KPI broadcast, Tue–Fri focus prompt, Friday checkout, timezone-aware scheduler.
 - [ ] **P6 — Growth analytics:** GA4/Search Console as explicitly configured, YouTube channel metrics; private/public routing enforced.
@@ -49,6 +49,16 @@
 - [x] Enforce cooldowns, a per-task daily cap, and expiring claims to prevent concurrent duplicate sends.
 - [x] Dry-run performs no send and creates no receipt.
 - [ ] Wire into live task polling only after workbook headers, formula flags, IDs, and service-account permissions are verified.
+
+## P4 acceptance criteria
+
+- [x] `/status` resolves one active team member from their Telegram chat ID and summarizes assigned active KPIs and the latest weekly result.
+- [x] `/goal` updates only one active KPI owned by the authenticated requester; ambiguous/missing matches and invalid targets do not write.
+- [x] `/blocker` does not claim a blocker was saved unless a configured, schema-validated destination accepted it.
+- [x] `/jd` reads only from an explicitly configured authoritative Job Descriptions worksheet; People Directory notes are never treated as JDs.
+- [x] Team workflows are opt-in with `ENABLE_TEAM_WORKFLOWS=false` by default.
+- [ ] Enable team workflows only after verifying live Telegram identity mapping, KPI fields, blocker destination, authoritative JD worksheet, and service-account write permissions.
+- [ ] Add drift/bottleneck checks after source data and ownership fields are verified.
 
 ## Design constraints to preserve
 
