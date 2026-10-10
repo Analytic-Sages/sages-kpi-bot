@@ -1,5 +1,3 @@
-import pytest
-
 from app.preflight import (
     ACCOUNTABILITY_SAFETY_HEADERS,
     CORE_SHEETS,
