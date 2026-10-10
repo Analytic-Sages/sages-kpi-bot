@@ -42,7 +42,7 @@ class Settings(BaseSettings):
     def normalize_log_level(cls, value: str) -> str:
         normalized = value.upper().strip()
         if normalized not in {"CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"}:
-            raise ValueError("LOG_LEVEL must be CRITICAL, ERROR, WARNING, or DEBUG")
+            raise ValueError("LOG_LEVEL must be CRITICAL, ERROR, WARNING, INFO, or DEBUG")
         return normalized
 
     @field_validator("timezone")
