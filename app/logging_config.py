@@ -7,7 +7,11 @@ def configure_logging(level: str = "INFO") -> None:
         {
             "version": 1,
             "disable_existing_loggers": False,
-            "formatters": {"standard": {"format": "%(asctime)s %(levelname)s %(name)s %(message)s"}},
+            "formatters": {
+                "standard": {
+                    "format": "%(asctime)s %(levelname)s %(name)s %(message)s",
+                }
+            },
             "handlers": {
                 "console": {
                     "class": "logging.StreamHandler",
