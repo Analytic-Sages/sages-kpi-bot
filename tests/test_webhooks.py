@@ -3,8 +3,8 @@ import hmac
 import json
 from datetime import UTC, datetime
 
-from fastapi.testclient import TestClient
 import pytest
+from fastapi.testclient import TestClient
 
 from app.config import Settings
 from app.main import app
