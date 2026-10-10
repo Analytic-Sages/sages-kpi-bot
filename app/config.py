@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     sheet_poll_interval_seconds: int = Field(default=60, ge=15, le=3600)
     reminder_cooldown_minutes: int = Field(default=240, ge=1, le=10080)
     max_reminders_per_task_per_day: int = Field(default=2, ge=1, le=20)
+    reminder_receipts_db_path: str = "data/polaris-reminders.sqlite3"
     dry_run: bool = True
 
     model_config = SettingsConfigDict(
