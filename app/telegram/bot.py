@@ -115,9 +115,15 @@ class TelegramBot:
             return "Growth analytics are disabled. An administrator must configure and enable them."
         core_chat_id = self.settings.telegram_core_chat_id
         if not core_chat_id:
-            return "Growth analytics are unavailable because the private core chat is not configured."
+            return (
+                "Growth analytics are unavailable because the private core chat "
+                "is not configured."
+            )
         if str(chat_id) != str(core_chat_id):
-            return "For privacy, growth analytics are available only in the configured private core chat."
+            return (
+                "For privacy, growth analytics are available only in the configured "
+                "private core chat."
+            )
         try:
             return await self.analytics.report()
         except Exception:

@@ -1,6 +1,7 @@
 """Validated application configuration."""
 from functools import lru_cache
 from typing import Literal
+
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -60,3 +61,9 @@ class Settings(BaseSettings):
         except (ZoneInfoNotFoundError, ValueError) as exc:
             raise ValueError(f"Unknown IANA timezone: {value}") from exc
         return value
+
+
+@lru_cache(maxsize=1)
+def get_settings() -> Settings:
+    """Return one cached settings object per process."""
+    return Settings()

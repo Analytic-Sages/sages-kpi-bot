@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock
 import httpx
 import pytest
 
-from app.analytics.service import GrowthAnalyticsService
+from app.analytics.service import AnalyticsError, GrowthAnalyticsService
 from app.config import Settings
 
 
@@ -61,7 +61,7 @@ async def test_ga4_requires_numeric_property_id():
         Settings(_env_file=None, ga4_property_id="properties/123")
     )
 
-    with pytest.raises(Exception, match="numeric property ID"):
+    with pytest.raises(AnalyticsError, match="numeric property ID"):
         await service._ga4_report()
 
 
@@ -76,5 +76,5 @@ async def test_youtube_missing_channel_is_reported_as_provider_error():
     )
     service._request_json = AsyncMock(return_value={"items": []})
 
-    with pytest.raises(Exception, match="no channel"):
+    with pytest.raises(AnalyticsError, match="no channel"):
         await service._youtube_report()

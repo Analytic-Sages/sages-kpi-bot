@@ -50,7 +50,12 @@ class GrowthAnalyticsService:
                 sections.extend(f"• {label}: {value}" for label, value in metrics.items())
             except (AnalyticsError, httpx.HTTPError, OSError, ValueError) as exc:
                 logger.warning("ga4_report_failed reason=%s", exc)
-                sections.extend(["🌐 Website (GA4)", "• Data unavailable; check property access and credentials."])
+                sections.extend(
+                    [
+                        "🌐 Website (GA4)",
+                        "• Data unavailable; check property access and credentials.",
+                    ]
+                )
             sections.append("")
         else:
             sections.extend(["🌐 Website (GA4)", "• Not configured (GA4_PROPERTY_ID).", ""])
@@ -63,10 +68,21 @@ class GrowthAnalyticsService:
                 sections.extend(f"• {label}: {value}" for label, value in metrics.items())
             except (AnalyticsError, httpx.HTTPError, ValueError) as exc:
                 logger.warning("youtube_report_failed reason=%s", exc)
-                sections.extend(["▶️ YouTube channel", "• Data unavailable; check channel ID and API key."])
+                sections.extend(
+                    [
+                        "▶️ YouTube channel",
+                        "• Data unavailable; check channel ID and API key.",
+                    ]
+                )
             sections.append("")
         else:
-            sections.extend(["▶️ YouTube channel", "• Not configured (YOUTUBE_CHANNEL_ID and YOUTUBE_API_KEY).", ""])
+            sections.extend(
+                [
+                    "▶️ YouTube channel",
+                    "• Not configured (YOUTUBE_CHANNEL_ID and YOUTUBE_API_KEY).",
+                    "",
+                ]
+            )
 
         if not configured:
             sections.append("Configure at least one analytics provider to enable this report.")
