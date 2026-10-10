@@ -38,9 +38,11 @@ async def lifespan(_: FastAPI):
                 sheets,
                 job_descriptions_worksheet=settings.job_descriptions_worksheet,
                 blocker_worksheet=settings.blocker_log_worksheet,
+                dry_run=settings.dry_run,
             )
             logger.warning(
-                "team_workflows_enabled dry_run=%s jd_source_configured=%s blocker_log_configured=%s",
+                "team_workflows_enabled dry_run=%s jd_source_configured=%s "
+                "blocker_log_configured=%s",
                 settings.dry_run,
                 bool(settings.job_descriptions_worksheet),
                 bool(settings.blocker_log_worksheet),

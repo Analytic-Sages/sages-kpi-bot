@@ -31,10 +31,12 @@ class TeamWorkflowService:
         *,
         job_descriptions_worksheet: str | None = None,
         blocker_worksheet: str | None = None,
+        dry_run: bool = True,
     ) -> None:
         self.sheets = sheets
         self.job_descriptions_worksheet = job_descriptions_worksheet
         self.blocker_worksheet = blocker_worksheet
+        self.dry_run = dry_run
 
     async def handle(self, command: str, args: str, chat_id: int | str) -> str:
         """Dispatch one team command and return a safe user-facing response."""
@@ -106,7 +108,8 @@ class TeamWorkflowService:
             if latest:
                 lines.append(
                     f"• {kpi.get('KPI', 'Unnamed KPI')}: {latest.get('Actual', '—')} "
-                    f"(target {kpi.get('Target', '—')}; {latest.get('Status', 'status unavailable')})"
+                    f"(target {kpi.get('Target', '—')}; "
+                    f"{latest.get('Status', 'status unavailable')})"
                 )
             else:
                 lines.append(
@@ -144,6 +147,11 @@ class TeamWorkflowService:
         kpi_id = matches[0].get("KPI ID", "").strip()
         if not kpi_id:
             raise TeamWorkflowError("KPI has no stable KPI ID")
+        if self.dry_run:
+            return (
+                f"DRY RUN: I would update {matches[0]['KPI']} target to "
+                f"{target.replace(',', '')}. No spreadsheet changes were made."
+            )
         await self.sheets.update_record(
             "KPI Register",
             key_header="KPI ID",
@@ -165,6 +173,11 @@ class TeamWorkflowService:
         existing = await self.sheets.read_records(self.blocker_worksheet)
         if not existing or not required.issubset(existing[0]):
             raise TeamWorkflowError("Configured blocker worksheet is missing required headers")
+        if self.dry_run:
+            return (
+                f"DRY RUN: I would record this blocker for {person['Full Name']}. "
+                "No spreadsheet changes were made."
+            )
         await self.sheets.append_record(
             self.blocker_worksheet,
             {
@@ -217,4 +230,5 @@ class TeamWorkflowService:
         description = matches[0].get("Job Description", "").strip()
         if not description:
             return "The authoritative job description for this role is empty."
-        return f"**{role} — {selected.get('Full Name', 'Team member')}**\n{description[:MAX_JD_CHARS]}"
+        heading = f"**{role} — {selected.get('Full Name', 'Team member')}**"
+        return f"{heading}\n{description[:MAX_JD_CHARS]}"
