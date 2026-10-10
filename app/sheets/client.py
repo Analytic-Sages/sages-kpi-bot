@@ -4,7 +4,8 @@ from __future__ import annotations
 import asyncio
 import logging
 from pathlib import Path
-from typing import Any, Callable, TypeVar
+from collections.abc import Callable
+from typing import Any, TypeVar
 
 import gspread
 from google.oauth2.service_account import Credentials
@@ -43,7 +44,9 @@ class GoogleSheetsClient:
             client = gspread.authorize(credentials)
             spreadsheet = client.open_by_key(settings.google_sheet_id)
         except Exception as exc:
-            raise GoogleSheetsError("Unable to authenticate or open the configured spreadsheet") from exc
+            raise GoogleSheetsError(
+                "Unable to authenticate or open the configured spreadsheet"
+            ) from exc
         return cls(spreadsheet)
 
     async def _api_call(self, operation: Callable[[], T], *, context: str) -> T:
@@ -146,7 +149,10 @@ class GoogleSheetsClient:
             raise GoogleSheetsError(f"Worksheet has no headers: {worksheet_name}")
         headers = normalize_headers(grid[0])
         validate_record_fields(values, headers)
-        row = ["" if values.get(header) is None else str(values.get(header, "")) for header in headers]
+        row = [
+            "" if values.get(header) is None else str(values.get(header, ""))
+            for header in headers
+        ]
         await self._api_call(
             lambda: worksheet.append_row(row, value_input_option="USER_ENTERED"),
             context=f"Unable to append to worksheet: {worksheet_name}",

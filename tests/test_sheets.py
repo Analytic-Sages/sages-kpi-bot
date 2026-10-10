@@ -12,7 +12,7 @@ def test_normalize_headers_trims_and_removes_trailing_empty_cells():
 
 @pytest.mark.parametrize(
     "headers",
-    [[], ["Task ID", ""], ["Task ID", "task id"]],
+    [[], ["Task ID", "", "Status"], ["Task ID", "task id"]],
 )
 def test_normalize_headers_rejects_unsafe_headers(headers):
     with pytest.raises(SheetSchemaError):
@@ -49,7 +49,10 @@ async def test_update_record_uses_header_position_not_fixed_column_number():
         ["Publish report", "In Progress", "T001"],
     ])
     row = await client.update_record(
-        "Master Task Tracker", key_header="Task ID", key_value="T001", values={"Status": "Completed"}
+        "Master Task Tracker",
+        key_header="Task ID",
+        key_value="T001",
+        values={"Status": "Completed"},
     )
     assert row == 2
     worksheet.batch_update.assert_called_once_with(
@@ -79,7 +82,8 @@ async def test_writes_reject_unknown_columns():
 async def test_append_record_aligns_values_to_headers():
     client, worksheet = make_client([["Task Name", "Task ID", "Status"]])
     row = await client.append_record(
-        "Master Task Tracker", {"Task ID": "T002", "Status": "Not Started", "Task Name": "Write brief"}
+        "Master Task Tracker",
+        {"Task ID": "T002", "Status": "Not Started", "Task Name": "Write brief"},
     )
     assert row == 2
     worksheet.append_row.assert_called_once_with(
