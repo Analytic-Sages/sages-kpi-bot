@@ -2,7 +2,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from app.sheets.client import GoogleSheetsClient, GoogleSheetsError
+from app.config import Settings
+from app.sheets.client import GoogleSheetsClient, GoogleSheetsError, google_auth_mode
 from app.sheets.schema import SheetSchemaError, normalize_headers, rows_from_values
 
 
@@ -89,3 +90,96 @@ async def test_append_record_aligns_values_to_headers():
     worksheet.append_row.assert_called_once_with(
         ["Write brief", "T002", "Not Started"], value_input_option="USER_ENTERED"
     )
+
+
+
+def test_google_auth_mode_accepts_complete_oauth_configuration():
+    settings = Settings(
+        _env_file=None,
+        google_sheet_id="sheet-id",
+        google_oauth_client_id="client-id",
+        google_oauth_client_secret="client-secret",
+        google_oauth_refresh_token="refresh-token",
+    )
+    assert google_auth_mode(settings) == "oauth"
+
+
+def test_google_auth_mode_rejects_partial_oauth_instead_of_falling_back(tmp_path):
+    credentials_file = tmp_path / "credentials.json"
+    credentials_file.write_text("{}", encoding="utf-8")
+    settings = Settings(
+        _env_file=None,
+        google_sheet_id="sheet-id",
+        google_creds_path=str(credentials_file),
+        google_oauth_client_id="client-id",
+    )
+    with pytest.raises(GoogleSheetsError, match="configured together"):
+        google_auth_mode(settings)
+
+
+def test_google_auth_mode_accepts_supported_credentials_file(tmp_path):
+    credentials_file = tmp_path / "external-account.json"
+    credentials_file.write_text("{}", encoding="utf-8")
+    settings = Settings(
+        _env_file=None,
+        google_sheet_id="sheet-id",
+        google_creds_path=str(credentials_file),
+    )
+    assert google_auth_mode(settings) == "file"
+
+
+def test_from_settings_builds_oauth_credentials_without_private_key(monkeypatch):
+    settings = Settings(
+        _env_file=None,
+        google_sheet_id="sheet-id",
+        google_oauth_client_id="client-id",
+        google_oauth_client_secret="client-secret",
+        google_oauth_refresh_token="refresh-token",
+    )
+    credentials_factory = MagicMock(return_value=MagicMock(name="oauth-credentials"))
+    authorized_client = MagicMock()
+    spreadsheet = MagicMock(name="spreadsheet")
+    authorized_client.open_by_key.return_value = spreadsheet
+    monkeypatch.setattr("app.sheets.client.OAuthCredentials", credentials_factory)
+    monkeypatch.setattr(
+        "app.sheets.client.gspread.authorize", lambda credentials: authorized_client
+    )
+
+    client = GoogleSheetsClient.from_settings(settings)
+
+    credentials_factory.assert_called_once_with(
+        token=None,
+        refresh_token="refresh-token",
+        token_uri="https://oauth2.googleapis.com/token",
+        client_id="client-id",
+        client_secret="client-secret",
+        scopes=["https://www.googleapis.com/auth/spreadsheets"],
+    )
+    authorized_client.open_by_key.assert_called_once_with("sheet-id")
+    assert client._spreadsheet is spreadsheet
+
+
+def test_from_settings_loads_external_account_or_service_account_file(monkeypatch, tmp_path):
+    credentials_file = tmp_path / "google-credentials.json"
+    credentials_file.write_text("{}", encoding="utf-8")
+    settings = Settings(
+        _env_file=None,
+        google_sheet_id="sheet-id",
+        google_creds_path=str(credentials_file),
+    )
+    credentials = MagicMock(name="file-credentials")
+    authorized_client = MagicMock()
+    spreadsheet = MagicMock(name="spreadsheet")
+    authorized_client.open_by_key.return_value = spreadsheet
+    loader = MagicMock(return_value=(credentials, "project-id"))
+    monkeypatch.setattr("app.sheets.client.google.auth.load_credentials_from_file", loader)
+    monkeypatch.setattr("app.sheets.client.gspread.authorize", lambda value: authorized_client)
+
+    client = GoogleSheetsClient.from_settings(settings)
+
+    loader.assert_called_once_with(
+        str(credentials_file),
+        scopes=["https://www.googleapis.com/auth/spreadsheets"],
+    )
+    authorized_client.open_by_key.assert_called_once_with("sheet-id")
+    assert client._spreadsheet is spreadsheet

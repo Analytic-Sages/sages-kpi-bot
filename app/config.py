@@ -19,7 +19,14 @@ class Settings(BaseSettings):
     telegram_core_chat_id: str | None = None
 
     google_sheet_id: str | None = None
+    # Supports a service-account key file or a Google external-account/WIF config file.
     google_creds_path: str = "credentials/google-service-account.json"
+    # Render production can use a dedicated Google user OAuth refresh token instead of a
+    # downloadable service-account private key. Keep all three values in the host secret store.
+    google_oauth_client_id: str | None = None
+    google_oauth_client_secret: str | None = None
+    google_oauth_refresh_token: str | None = None
+
     enable_team_workflows: bool = False
     enable_scheduled_workflows: bool = False
     enable_analytics: bool = False
