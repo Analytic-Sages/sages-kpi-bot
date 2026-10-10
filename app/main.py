@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 
 from app.config import get_settings
 from app.logging_config import configure_logging
+from app.scheduled.workflows import ScheduledWorkflowService, build_scheduler
 from app.sheets.client import GoogleSheetsClient
 from app.team.workflows import TeamWorkflowService
 from app.telegram.bot import TelegramBot
@@ -30,10 +31,13 @@ async def lifespan(_: FastAPI):
     telegram_client: TelegramClient | None = None
     telegram_bot: TelegramBot | None = None
     telegram_task: asyncio.Task[None] | None = None
+    scheduler = None
     if settings.telegram_bot_token:
         workflows: TeamWorkflowService | None = None
-        if settings.enable_team_workflows:
+        sheets = None
+        if settings.enable_team_workflows or settings.enable_scheduled_workflows:
             sheets = await asyncio.to_thread(GoogleSheetsClient.from_settings, settings)
+        if settings.enable_team_workflows and sheets is not None:
             workflows = TeamWorkflowService(
                 sheets,
                 job_descriptions_worksheet=settings.job_descriptions_worksheet,
@@ -52,6 +56,15 @@ async def lifespan(_: FastAPI):
         try:
             await telegram_bot.start()
             telegram_task = asyncio.create_task(telegram_bot.run(), name="polaris-telegram-polling")
+            if settings.enable_scheduled_workflows and sheets is not None:
+                scheduled = ScheduledWorkflowService(sheets, telegram_client, settings)
+                scheduler = build_scheduler(scheduled)
+                scheduler.start()
+                logger.warning(
+                    "scheduled_workflows_enabled timezone=UTC dry_run=%s core_chat_configured=%s",
+                    settings.dry_run,
+                    bool(settings.telegram_core_chat_id),
+                )
         except Exception:
             await telegram_client.close()
             raise
@@ -60,6 +73,8 @@ async def lifespan(_: FastAPI):
     try:
         yield
     finally:
+        if scheduler is not None:
+            scheduler.shutdown(wait=False)
         if telegram_bot is not None:
             await telegram_bot.stop()
         if telegram_task is not None:
@@ -105,8 +120,13 @@ async def readiness() -> JSONResponse:
             "integrations": {
                 "telegram": "configured" if settings.telegram_bot_token else "not_configured",
                 "google_sheets": (
-                    "enabled_for_team_workflows"
-                    if settings.enable_team_workflows
+                    "enabled_for_team_or_scheduled_workflows"
+                    if settings.enable_team_workflows or settings.enable_scheduled_workflows
+                    else "not_enabled"
+                ),
+                "scheduled_workflows": (
+                    "enabled_dry_run" if settings.enable_scheduled_workflows and settings.dry_run
+                    else "enabled" if settings.enable_scheduled_workflows
                     else "not_enabled"
                 ),
                 "analytics": "not_implemented",
