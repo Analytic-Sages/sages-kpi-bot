@@ -57,7 +57,9 @@ async def test_status_shows_latest_kpi_observation_for_authenticated_person():
 @pytest.mark.asyncio
 async def test_goal_updates_only_a_unique_active_kpi_owned_by_requester():
     sheets = FakeSheets(sample_records())
-    response = await TeamWorkflowService(sheets, dry_run=False).handle("/goal", "Qualified Leads 15", "123")
+    response = await TeamWorkflowService(sheets, dry_run=False).handle(
+        "/goal", "Qualified Leads 15", "123"
+    )
     assert response == "Target updated for Qualified Leads: 15."
     sheets.update_record.assert_awaited_once_with(
         "KPI Register",
