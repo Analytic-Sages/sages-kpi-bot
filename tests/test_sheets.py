@@ -141,7 +141,9 @@ def test_from_settings_builds_oauth_credentials_without_private_key(monkeypatch)
     spreadsheet = MagicMock(name="spreadsheet")
     authorized_client.open_by_key.return_value = spreadsheet
     monkeypatch.setattr("app.sheets.client.OAuthCredentials", credentials_factory)
-    monkeypatch.setattr("app.sheets.client.gspread.authorize", lambda credentials: authorized_client)
+    monkeypatch.setattr(
+        "app.sheets.client.gspread.authorize", lambda credentials: authorized_client
+    )
 
     client = GoogleSheetsClient.from_settings(settings)
 
