@@ -1,3 +1,5 @@
+import asyncio
+
 from app.config import Settings
 from app.preflight import (
     ACCOUNTABILITY_SAFETY_HEADERS,
@@ -6,6 +8,7 @@ from app.preflight import (
     configuration_findings,
     missing_headers,
     print_report,
+    sheet_findings,
 )
 
 
@@ -75,3 +78,24 @@ def test_preflight_flags_incomplete_oauth_configuration():
         and "configured together" in finding.message
         for finding in findings
     )
+
+
+def test_sheet_findings_accepts_header_only_worksheets():
+    headers_by_sheet = {name: set(headers) for name, headers in CORE_SHEETS.items()}
+    for name, headers in ACCOUNTABILITY_SAFETY_HEADERS.items():
+        headers_by_sheet[name].update(headers)
+
+    class HeaderOnlyClient:
+        async def read_headers(self, worksheet_name):
+            # Models a worksheet that has a valid row 1 and no data rows.
+            return sorted(headers_by_sheet[worksheet_name])
+
+    findings = asyncio.run(sheet_findings(HeaderOnlyClient()))
+    weekly_log = next(f for f in findings if f.component == "Weekly KPI Log")
+    assert weekly_log.severity == "PASS"
+    assert weekly_log.message == "Core headers are present."
+    assert not any(
+        f.severity == "BLOCKER" and f.component == "Weekly KPI Log"
+        for f in findings
+    )
+
