@@ -32,8 +32,10 @@
 - [x] Add `python -m app.preflight` read-only checks for configuration presence and the four core worksheet schemas.
 - [x] Report missing accountability formula/recipient safety headers as blockers.
 - [x] Keep secret values and individual sheet records out of preflight output.
-- [x] Add tests for schema comparison and blocker reporting.
-- [ ] Run the preflight against the live spreadsheet from the deployment environment.
+- [x] Add tests for schema comparison, blocker reporting, and Google authentication modes.
+- [x] Support Render production Google Sheets OAuth refresh-token credentials without a downloadable service-account private key.
+- [x] Preserve support for service-account files and external-account/Workload Identity Federation credential files.
+- [ ] Configure the OAuth consent screen and refresh token for the dedicated Google account in Render, then run preflight against the live spreadsheet.
 - [ ] Verify Telegram identity/routing, GA4/YouTube access, persistent SQLite storage, HTTPS, and single-instance operation.
 - [ ] Complete staging acceptance tests before enabling any live outbound workflows.
 
@@ -56,7 +58,7 @@
 
 ## Outstanding production gates
 
-- Verify live Google Sheet ID/service-account access, actual headers/formula flags, and authoritative Job Descriptions source.
+- Verify live Google Sheet ID/OAuth access, actual headers/formula flags, and authoritative Job Descriptions source.
 - Verify Telegram core/public chat IDs and single-instance deployment before enabling team workflows or schedules.
 - Verify GA4 property access and YouTube API key/channel ID before enabling analytics.
 - Verify webhook sender contract, HTTPS termination, secret rotation, persistent storage, and alerting before enabling inbound webhooks.
