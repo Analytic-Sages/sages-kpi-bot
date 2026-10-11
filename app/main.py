@@ -12,6 +12,7 @@ from app.analytics.service import GrowthAnalyticsService
 from app.config import get_settings
 from app.logging_config import configure_logging
 from app.preflight import sheet_findings
+from app.preflight_rows import row_integrity_findings
 from app.scheduled.workflows import ScheduledWorkflowService, build_scheduler
 from app.sheets.client import GoogleSheetsClient, GoogleSheetsError
 from app.team.workflows import TeamWorkflowService
@@ -167,10 +168,10 @@ async def readiness() -> JSONResponse:
 
 @app.get("/admin/preflight", tags=["admin"])
 async def read_only_deployment_preflight(request: Request) -> JSONResponse:
-    """Verify Google Sheets access and required headers without reading records or writing data.
+    """Verify Google Sheets access, headers, and aggregate row integrity without writes.
 
     The endpoint is hidden unless PREFLIGHT_TOKEN is configured and requires a high-entropy
-    bearer token. It reports only worksheet names and header-check results.
+    bearer token. It reports aggregate counts and check outcomes only, never record values.
     """
     expected_token = settings.preflight_token
     if not expected_token:
@@ -207,6 +208,7 @@ async def read_only_deployment_preflight(request: Request) -> JSONResponse:
     try:
         sheets = await asyncio.to_thread(GoogleSheetsClient.from_settings, settings)
         findings = await sheet_findings(sheets)
+        findings.extend(await row_integrity_findings(sheets))
     except GoogleSheetsError:
         logger.warning("deployment_preflight_failed reason=google_sheets_connection")
         return JSONResponse(
