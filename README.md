@@ -62,7 +62,7 @@ The preflight deliberately checks only headers and access, not individual people
 
 ### Verify Google Sheets from Render without enabling workflows
 
-If you cannot open a shell in the hosting environment, configure `PREFLIGHT_TOKEN` in the hosting secret store with a randomly generated secret of at least 32 characters, then redeploy. With that variable set, `GET /admin/preflight` is available only to callers sending `Authorization: Bearer <PREFLIGHT_TOKEN>`. It authenticates to the configured spreadsheet and reads worksheet headers only. It does not read people's records, write to Sheets, send Telegram messages, or enable workflows. Keep the token private and remove it after validation if you no longer need the endpoint.
+If you cannot open a shell in the hosting environment, configure `PREFLIGHT_TOKEN` in the hosting secret store with a randomly generated secret of at least 32 characters, then redeploy. With that variable set, `GET /admin/preflight` is available only to callers sending `Authorization: Bearer <PREFLIGHT_TOKEN>`. It authenticates to the configured spreadsheet, checks worksheet headers, and performs read-only integrity checks on the core people, KPI, weekly KPI, and task records. The response includes aggregate counts and check outcomes only; it never returns names, person IDs, chat IDs, or record contents. It does not write to Sheets, send Telegram messages, or enable workflows. Keep the token private and remove it after validation if you no longer need the endpoint.
 
 Example from a local terminal, after storing the token in your shell environment as `POLARIS_PREFLIGHT_TOKEN`:
 
@@ -72,7 +72,7 @@ curl --fail-with-body -sS \
   https://YOUR-RENDER-SERVICE.onrender.com/admin/preflight
 ```
 
-A `200` response with `"status":"passed"` confirms that the deployed app authenticated and the required headers were readable. A `503` response returns sanitized blocker details. A `401` means the bearer token was missing or incorrect; a `404` means the endpoint is disabled because `PREFLIGHT_TOKEN` is not configured. Never put the token in a URL or share it in chat or logs.
+A `200` response with `"status":"passed"` confirms that the deployed app authenticated and all header and row-integrity checks passed. A `503` response with `"status":"blocked"` means one or more blockers need investigation. A `503` response returns sanitized blocker details. A `401` means the bearer token was missing or incorrect; a `404` means the endpoint is disabled because `PREFLIGHT_TOKEN` is not configured. Never put the token in a URL or share it in chat or logs.
 
 ## Inbound webhook contract
 
