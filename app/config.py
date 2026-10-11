@@ -30,6 +30,8 @@ class Settings(BaseSettings):
     preflight_token: str | None = None
 
     enable_team_workflows: bool = False
+    # Separately gate Google Sheets mutations from read-only team commands.
+    enable_team_writes: bool = False
     enable_scheduled_workflows: bool = False
     enable_analytics: bool = False
     enable_webhooks: bool = False
