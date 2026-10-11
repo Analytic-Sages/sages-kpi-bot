@@ -57,8 +57,10 @@ async def row_integrity_findings(client: GoogleSheetsClient) -> list[Finding]:
                 Finding(
                     "BLOCKER",
                     f"{sheet} / {field}",
-                    f"Found {blank_count} blank and {duplicate_count} duplicated identifier value(s). "
-                    "Resolve these before enabling team workflows.",
+                    (
+                        f"Found {blank_count} blank and {duplicate_count} duplicated "
+                        "identifier value(s). Resolve these before enabling team workflows."
+                    ),
                 )
             )
         else:
@@ -104,7 +106,10 @@ async def row_integrity_findings(client: GoogleSheetsClient) -> list[Finding]:
             Finding(
                 "BLOCKER",
                 "KPI Register / owner references",
-                f"Found {missing_kpi_owners} blank and {invalid_kpi_owners} unknown KPI owner reference(s).",
+                (
+                    f"Found {missing_kpi_owners} blank and {invalid_kpi_owners} "
+                    "unknown KPI owner reference(s)."
+                ),
             )
         )
     else:
@@ -146,7 +151,10 @@ async def row_integrity_findings(client: GoogleSheetsClient) -> list[Finding]:
             Finding(
                 "BLOCKER",
                 "Master Task Tracker / assignee references",
-                f"Found {unknown_task_people} task assignee reference(s) that do not resolve to a person.",
+                (
+                    f"Found {unknown_task_people} task assignee reference(s) that do not "
+                    "resolve to a person."
+                ),
             )
         )
     else:
