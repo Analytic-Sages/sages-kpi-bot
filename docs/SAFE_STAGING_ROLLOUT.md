@@ -117,13 +117,16 @@ The tests should verify that:
 With `DRY_RUN=true` and `ENABLE_SAFE_TELEGRAM_REPLIES=false`, no Telegram reply is sent.
 Automated tests cover command dispatch at this stage. To obtain a personal ID without disabling
 dry-run, an administrator may temporarily set `ENABLE_SAFE_TELEGRAM_REPLIES=true` in Render. This
-explicitly permits only `/start`, `/help`, and `/whoami` replies; all team-command replies remain
-suppressed and all team workflows must remain disabled. Keep this flag off except during a
-controlled onboarding window, then restore it to false. Do not test `/goal` or `/blocker` against
-live data until the separate write-approval gate is complete. Confirm that a group
-`/status` does not call team workflows and that private team commands identify the same person
-as the workbook mapping.
+explicitly permits only `/start`, `/help`, and `/whoami` replies. Restore this flag to false after
+onboarding.
 
+After identity mapping and KPI configuration both pass preflight, an administrator may temporarily
+set `ENABLE_TEAM_WORKFLOWS=true` and `ENABLE_DRY_RUN_TEAM_REPLIES=true` while keeping
+`DRY_RUN=true`. This permits private team-command replies so testers can inspect read results and
+dry-run previews; writes remain suppressed by the workflow service's dry-run guard. Group commands
+remain rejected before workflow dispatch and do not receive team replies. Keep scheduled workflows,
+analytics, and webhooks disabled. Restore `ENABLE_DRY_RUN_TEAM_REPLIES=false` after the test window.
+Do not disable dry-run or approve live writes until the separate write-approval gate is complete.
 ## 4. Gate team workflows separately
 
 Before setting `ENABLE_TEAM_WORKFLOWS=true`, all of the following must be true:
