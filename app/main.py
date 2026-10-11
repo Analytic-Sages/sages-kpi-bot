@@ -55,7 +55,8 @@ async def lifespan(_: FastAPI):
                 sheets,
                 job_descriptions_worksheet=settings.job_descriptions_worksheet,
                 blocker_worksheet=settings.blocker_log_worksheet,
-                dry_run=settings.dry_run,
+                # Read-only team commands can be staged independently from spreadsheet writes.
+                dry_run=settings.dry_run or not settings.enable_team_writes,
             )
             logger.warning(
                 "team_workflows_enabled dry_run=%s jd_source_configured=%s "
