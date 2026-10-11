@@ -1,6 +1,7 @@
 """Polaris HTTP application entry point."""
 import asyncio
 import logging
+import secrets
 import sqlite3
 from contextlib import asynccontextmanager
 
@@ -10,8 +11,9 @@ from fastapi.responses import JSONResponse
 from app.analytics.service import GrowthAnalyticsService
 from app.config import get_settings
 from app.logging_config import configure_logging
+from app.preflight import sheet_findings
 from app.scheduled.workflows import ScheduledWorkflowService, build_scheduler
-from app.sheets.client import GoogleSheetsClient
+from app.sheets.client import GoogleSheetsClient, GoogleSheetsError
 from app.team.workflows import TeamWorkflowService
 from app.telegram.bot import TelegramBot
 from app.telegram.client import TelegramClient
@@ -160,6 +162,82 @@ async def readiness() -> JSONResponse:
                 "webhooks": webhook_state,
             },
         },
+    )
+
+
+@app.get("/admin/preflight", tags=["admin"])
+async def read_only_deployment_preflight(request: Request) -> JSONResponse:
+    """Verify Google Sheets access and required headers without reading records or writing data.
+
+    The endpoint is hidden unless PREFLIGHT_TOKEN is configured and requires a high-entropy
+    bearer token. It reports only worksheet names and header-check results.
+    """
+    expected_token = settings.preflight_token
+    if not expected_token:
+        return JSONResponse(status_code=404, content={"detail": "Not found"})
+    if len(expected_token) < 32:
+        logger.error("deployment_preflight_unavailable reason=token_too_short")
+        return JSONResponse(
+            status_code=503,
+            content={"detail": "Deployment preflight is misconfigured"},
+        )
+
+    authorization = request.headers.get("Authorization", "")
+    scheme, _, supplied_token = authorization.partition(" ")
+    if scheme.lower() != "bearer" or not supplied_token.strip():
+        return JSONResponse(status_code=401, content={"detail": "Unauthorized"})
+    if not secrets.compare_digest(expected_token, supplied_token.strip()):
+        return JSONResponse(status_code=401, content={"detail": "Unauthorized"})
+
+    if not settings.google_sheet_id:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "blocked",
+                "checks": [
+                    {
+                        "severity": "BLOCKER",
+                        "component": "Google Sheets",
+                        "message": "GOOGLE_SHEET_ID is not configured.",
+                    }
+                ],
+            },
+        )
+
+    try:
+        sheets = await asyncio.to_thread(GoogleSheetsClient.from_settings, settings)
+        findings = await sheet_findings(sheets)
+    except GoogleSheetsError:
+        logger.warning("deployment_preflight_failed reason=google_sheets_connection")
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "blocked",
+                "checks": [
+                    {
+                        "severity": "BLOCKER",
+                        "component": "Google Sheets",
+                        "message": (
+                            "Could not authenticate or open the spreadsheet. Check OAuth "
+                            "configuration and spreadsheet sharing."
+                        ),
+                    }
+                ],
+            },
+        )
+
+    checks = [
+        {
+            "severity": finding.severity,
+            "component": finding.component,
+            "message": finding.message,
+        }
+        for finding in findings
+    ]
+    blocked = any(finding.severity == "BLOCKER" for finding in findings)
+    return JSONResponse(
+        status_code=503 if blocked else 200,
+        content={"status": "blocked" if blocked else "passed", "checks": checks},
     )
 
 
