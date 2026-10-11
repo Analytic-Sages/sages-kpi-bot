@@ -60,6 +60,20 @@ The command checks required environment configuration without displaying secret 
 
 The preflight deliberately checks only headers and access, not individual people's rows. A successful report does not prove that chat IDs are correct, Telegram delivery works, analytics APIs are authorized, HTTPS is configured, SQLite storage is durable, or only one service instance is running. Complete the manual staging checklist below before enabling live workflows.
 
+### Verify Google Sheets from Render without enabling workflows
+
+If you cannot open a shell in the hosting environment, configure `PREFLIGHT_TOKEN` in the hosting secret store with a randomly generated secret of at least 32 characters, then redeploy. With that variable set, `GET /admin/preflight` is available only to callers sending `Authorization: Bearer <PREFLIGHT_TOKEN>`. It authenticates to the configured spreadsheet and reads worksheet headers only. It does not read people's records, write to Sheets, send Telegram messages, or enable workflows. Keep the token private and remove it after validation if you no longer need the endpoint.
+
+Example from a local terminal, after storing the token in your shell environment as `POLARIS_PREFLIGHT_TOKEN`:
+
+```bash
+curl --fail-with-body -sS \
+  -H "Authorization: Bearer $POLARIS_PREFLIGHT_TOKEN" \
+  https://YOUR-RENDER-SERVICE.onrender.com/admin/preflight
+```
+
+A `200` response with `"status":"passed"` confirms that the deployed app authenticated and the required headers were readable. A `503` response returns sanitized blocker details. A `401` means the bearer token was missing or incorrect; a `404` means the endpoint is disabled because `PREFLIGHT_TOKEN` is not configured. Never put the token in a URL or share it in chat or logs.
+
 ## Inbound webhook contract
 
 `POST /webhooks/events` is disabled unless `ENABLE_WEBHOOKS=true` and `WEBHOOK_SECRET` is configured.
