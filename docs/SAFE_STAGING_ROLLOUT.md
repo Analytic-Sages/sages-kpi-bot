@@ -12,6 +12,7 @@ Until every gate below is approved, keep these Render variables:
 ```dotenv
 APP_ENV=production
 DRY_RUN=true
+ENABLE_SAFE_TELEGRAM_REPLIES=false
 ENABLE_TEAM_WORKFLOWS=false
 ENABLE_SCHEDULED_WORKFLOWS=false
 ENABLE_ANALYTICS=false
@@ -112,13 +113,13 @@ The tests should verify that:
 
 ### Telegram smoke test
 
-With `DRY_RUN=true` and team workflows disabled, no Telegram reply is actually sent by design.
-Use automated tests for response assertions at this stage. Do not disable dry-run just to see a
-reply.
-
-After the identity map is verified, a controlled smoke-test window may allow only safe onboarding
-replies (`/start`, `/help`, `/whoami`) to a test account. Do not test `/goal` or `/blocker`
-against live data until the separate write-approval gate is complete. Confirm that a group
+With `DRY_RUN=true` and `ENABLE_SAFE_TELEGRAM_REPLIES=false`, no Telegram reply is sent.
+Automated tests cover command dispatch at this stage. To obtain a personal ID without disabling
+dry-run, an administrator may temporarily set `ENABLE_SAFE_TELEGRAM_REPLIES=true` in Render. This
+explicitly permits only `/start`, `/help`, and `/whoami` replies; all team-command replies remain
+suppressed and all team workflows must remain disabled. Keep this flag off except during a
+controlled onboarding window, then restore it to false. Do not test `/goal` or `/blocker` against
+live data until the separate write-approval gate is complete. Confirm that a group
 `/status` does not call team workflows and that private team commands identify the same person
 as the workbook mapping.
 
