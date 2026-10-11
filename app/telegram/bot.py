@@ -59,12 +59,19 @@ class TelegramBot:
                         self._offset = max(self._offset or 0, update_id + 1)
                     try:
                         await self.handle_update(update)
-                    except Exception:
-                        logger.exception("telegram_update_failed update_id=%s", update_id)
+                    except Exception as exc:
+                        logger.error(
+                            "telegram_update_failed update_id=%s error_type=%s",
+                            update_id,
+                            type(exc).__name__,
+                        )
             except asyncio.CancelledError:
                 raise
-            except TelegramAPIError:
-                logger.exception("telegram_poll_failed; retrying after delay")
+            except TelegramAPIError as exc:
+                logger.error(
+                    "telegram_poll_failed error_type=%s; retrying after delay",
+                    type(exc).__name__,
+                )
                 try:
                     await asyncio.wait_for(self._stop.wait(), timeout=3.0)
                 except TimeoutError:
@@ -126,15 +133,19 @@ class TelegramBot:
             )
         try:
             return await self.analytics.report()
-        except Exception:
-            logger.exception("growth_analytics_command_failed")
+        except Exception as exc:
+            logger.error("growth_analytics_command_failed error_type=%s", type(exc).__name__)
             return "Growth analytics could not be loaded. Check provider credentials and logs."
 
     async def _reply(self, chat_id: int | str, text: str) -> None:
         if self.settings.dry_run:
-            logger.info("telegram_dry_run_message chat_id=%s text=%r", chat_id, text[:160])
+            logger.info("telegram_dry_run_message_suppressed chat_id=%s", chat_id)
             return
         try:
             await self.client.send_message(chat_id, text)
-        except TelegramAPIError:
-            logger.exception("telegram_reply_failed chat_id=%s", chat_id)
+        except TelegramAPIError as exc:
+            logger.error(
+                "telegram_reply_failed chat_id=%s error_type=%s",
+                chat_id,
+                type(exc).__name__,
+            )

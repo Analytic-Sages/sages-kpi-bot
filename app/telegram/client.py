@@ -32,8 +32,9 @@ class TelegramClient:
             response = await self._client.post(f"{self._base_url}/{method}", json=payload)
             response.raise_for_status()
             body = response.json()
-        except (httpx.HTTPError, ValueError) as exc:
-            raise TelegramAPIError(f"Telegram API request {method} failed") from exc
+        except (httpx.HTTPError, ValueError):
+            # The chained HTTP exception can include the full Bot API URL, which embeds the token.
+            raise TelegramAPIError(f"Telegram API request {method} failed") from None
         if not isinstance(body, dict) or not body.get("ok"):
             if isinstance(body, dict):
                 description = body.get("description", "unknown Telegram API error")
