@@ -14,7 +14,7 @@ async def test_command_menu_includes_rollout_commands():
     await client.set_commands()
     payload = client._request.await_args.args[1]
     assert {item["command"] for item in payload["commands"]} == {
-        "start", "help", "status", "goal", "blocker", "jd", "growth"
+        "start", "help", "whoami", "status", "goal", "blocker", "jd", "growth"
     }
     await client.close()
 
@@ -121,3 +121,41 @@ async def test_failed_telegram_response_is_reported():
     with pytest.raises(TelegramAPIError):
         await client.get_updates(None)
     await client.close()
+
+
+@pytest.mark.asyncio
+async def test_whoami_returns_personal_id_only_in_private_chat():
+    client = AsyncMock()
+    bot = TelegramBot(client, Settings(_env_file=None, dry_run=False))
+
+    await bot.handle_update({
+        "update_id": 20,
+        "message": {
+            "chat": {"id": 456, "type": "private"},
+            "from": {"id": 456},
+            "text": "/whoami",
+        },
+    })
+
+    client.send_message.assert_awaited_once()
+    assert "456" in client.send_message.await_args.args[1]
+    assert "private channel" in client.send_message.await_args.args[1]
+
+
+@pytest.mark.asyncio
+async def test_whoami_does_not_disclose_id_in_group_chat():
+    client = AsyncMock()
+    bot = TelegramBot(client, Settings(_env_file=None, dry_run=False))
+
+    await bot.handle_update({
+        "update_id": 21,
+        "message": {
+            "chat": {"id": -500, "type": "supergroup"},
+            "from": {"id": 456},
+            "text": "/whoami",
+        },
+    })
+
+    client.send_message.assert_awaited_once()
+    assert "private chat" in client.send_message.await_args.args[1]
+    assert "456" not in client.send_message.await_args.args[1]
