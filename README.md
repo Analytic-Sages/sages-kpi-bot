@@ -107,6 +107,10 @@ Responses: `202` for first acceptance, `200` for an identical duplicate, `401` f
 
 **Important:** this first release authenticates and records event metadata/body hash for idempotency; it deliberately does not execute event payloads or trigger Telegram/Sheets writes. The database stores the event ID, type, SHA-256 body hash and receipt time, not the arbitrary payload. Do not enable it until the secret is supplied via the hosting platform's secret manager and persistent storage is available for `WEBHOOK_DB_PATH`. Use HTTPS at the hosting edge; never put the secret in source control or request logs.
 
+## Safe staging rollout
+
+Follow [`docs/SAFE_STAGING_ROLLOUT.md`](docs/SAFE_STAGING_ROLLOUT.md) before enabling any live team, scheduled, analytics, or webhook workflow. It covers private Telegram identity onboarding, pilot KPI configuration, read-only preflight acceptance, safe command tests, staged activation, and rollback gates.
+
 ## Deployment checklist
 
 1. Deploy the Docker image or install the project in a managed Python 3.12 environment.
