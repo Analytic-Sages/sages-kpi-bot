@@ -32,6 +32,72 @@ async def test_start_command_dry_run_does_not_send_message():
 
 
 @pytest.mark.asyncio
+async def test_private_team_command_maps_using_sender_id_not_group_chat_id():
+    client = AsyncMock()
+    workflows = AsyncMock()
+    workflows.handle.return_value = "private status"
+    settings = Settings(_env_file=None, dry_run=False)
+    bot = TelegramBot(client, settings, workflows=workflows)
+
+    await bot.handle_update({
+        "update_id": 10,
+        "message": {
+            "chat": {"id": 456, "type": "private"},
+            "from": {"id": 456},
+            "text": "/status",
+        },
+    })
+
+    workflows.handle.assert_awaited_once_with("/status", "", 456)
+    client.send_message.assert_awaited_once_with(456, "private status")
+
+
+@pytest.mark.asyncio
+async def test_group_team_command_is_rejected_without_running_workflow():
+    client = AsyncMock()
+    workflows = AsyncMock()
+    settings = Settings(_env_file=None, dry_run=False)
+    bot = TelegramBot(client, settings, workflows=workflows)
+
+    await bot.handle_update({
+        "update_id": 11,
+        "message": {
+            "chat": {"id": -500, "type": "supergroup"},
+            "from": {"id": 456},
+            "text": "/status",
+        },
+    })
+
+    workflows.handle.assert_not_awaited()
+    client.send_message.assert_awaited_once()
+    assert "private chat" in client.send_message.await_args.args[1]
+
+
+@pytest.mark.asyncio
+async def test_private_team_command_rejects_mismatched_sender_and_chat():
+    client = AsyncMock()
+    workflows = AsyncMock()
+    bot = TelegramBot(
+        client,
+        Settings(_env_file=None, dry_run=False),
+        workflows=workflows,
+    )
+
+    await bot.handle_update({
+        "update_id": 12,
+        "message": {
+            "chat": {"id": 123, "type": "private"},
+            "from": {"id": 456},
+            "text": "/goal Qualified Leads 20",
+        },
+    })
+
+    workflows.handle.assert_not_awaited()
+    client.send_message.assert_awaited_once()
+    assert "couldn't verify" in client.send_message.await_args.args[1]
+
+
+@pytest.mark.asyncio
 async def test_non_command_and_non_message_updates_are_ignored():
     client = AsyncMock()
     bot = TelegramBot(client, Settings(_env_file=None, dry_run=True))
