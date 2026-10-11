@@ -150,7 +150,11 @@ class TelegramBot:
                 )
         else:
             return
-        await self._reply(chat_id, reply)
+        await self._reply(
+            chat_id,
+            reply,
+            safe=command in {"/start", "/help", "/whoami"},
+        )
 
     async def _growth_reply(self, chat_id: int | str) -> str:
         if not self.settings.enable_analytics or self.analytics is None:
@@ -172,8 +176,12 @@ class TelegramBot:
             logger.error("growth_analytics_command_failed error_type=%s", type(exc).__name__)
             return "Growth analytics could not be loaded. Check provider credentials and logs."
 
-    async def _reply(self, chat_id: int | str, text: str) -> None:
-        if self.settings.dry_run:
+    async def _reply(
+        self, chat_id: int | str, text: str, *, safe: bool = False
+    ) -> None:
+        if self.settings.dry_run and not (
+            self.settings.enable_safe_telegram_replies and safe
+        ):
             logger.info("telegram_dry_run_message_suppressed chat_id=%s", chat_id)
             return
         try:
