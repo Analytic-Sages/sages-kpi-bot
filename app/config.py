@@ -26,6 +26,8 @@ class Settings(BaseSettings):
     google_oauth_client_id: str | None = None
     google_oauth_client_secret: str | None = None
     google_oauth_refresh_token: str | None = None
+    # Optional high-entropy bearer token protecting the read-only deployment preflight endpoint.
+    preflight_token: str | None = None
 
     enable_team_workflows: bool = False
     enable_scheduled_workflows: bool = False
