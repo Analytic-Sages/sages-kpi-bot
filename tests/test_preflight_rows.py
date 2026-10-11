@@ -155,3 +155,16 @@ def test_configured_kpi_with_missing_setup_field_is_blocked():
     )
     assert readiness.severity == "BLOCKER"
     assert "1 of 1 configured KPI" in readiness.message
+
+
+def test_group_chat_ids_are_blocked_for_person_identity_mapping():
+    records = valid_records()
+    records["People Directory"][0]["Telegram Chat ID"] = "-500"
+
+    findings = asyncio.run(row_integrity_findings(FakeRowsClient(records)))
+    identity = next(
+        f for f in findings
+        if f.component == "People Directory / Telegram identity"
+    )
+    assert identity.severity == "BLOCKER"
+    assert "positive private-chat IDs" in identity.message
