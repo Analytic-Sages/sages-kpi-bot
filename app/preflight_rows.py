@@ -106,11 +106,6 @@ async def row_integrity_findings(client: GoogleSheetsClient) -> list[Finding]:
     configured_kpis = [
         row for row in kpis if row.get("KPI", "").strip()
     ]
-    configured_kpi_ids = {
-        row.get("KPI ID", "").strip()
-        for row in configured_kpis
-        if row.get("KPI ID", "").strip()
-    }
     invalid_kpi_owners = sum(
         bool(row.get("Owner Person ID", "").strip())
         and row.get("Owner Person ID", "").strip() not in known_person_ids
