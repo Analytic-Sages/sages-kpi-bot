@@ -30,7 +30,6 @@ def test_readiness_does_not_claim_integrations_are_connected():
     assert payload["integrations"]["analytics"] == "not_enabled"
 
 
-
 def test_deployment_preflight_is_hidden_without_token(monkeypatch):
     monkeypatch.setattr(main_module.settings, "preflight_token", None)
     response = client.get("/admin/preflight")
