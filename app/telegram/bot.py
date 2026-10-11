@@ -97,24 +97,42 @@ class TelegramBot:
             return
 
         sender_id = sender.get("id") if isinstance(sender, dict) else None
+        chat_type = chat.get("type")
         logger.info(
-            "telegram_command_received command=%s chat_id=%s sender_id=%s",
+            "telegram_command_received command=%s chat_id=%s sender_id=%s chat_type=%s",
             command,
             chat_id,
             sender_id,
+            chat_type,
         )
         if command in {"/start", "/help"}:
             reply = HELP_TEXT
         elif command == "/growth":
             reply = await self._growth_reply(chat_id)
-        elif self.workflows is not None:
-            reply = await self.workflows.handle(command, args, chat_id)
+        elif command in {"/status", "/goal", "/blocker", "/jd"}:
+            # Team identity is a person's private Telegram chat ID, not a shared
+            # group chat ID. Fail closed for group/supergroup commands to prevent
+            # personal accountability data or command arguments being processed there.
+            if chat_type != "private":
+                reply = (
+                    "For privacy, team commands must be used in a private chat with "
+                    "@AnalyticSagesPolarisBot. Open the bot and send /start, then retry "
+                    "your command here. Team commands are not processed in groups."
+                )
+            elif not isinstance(sender_id, (int, str)) or str(sender_id) != str(chat_id):
+                reply = (
+                    "I couldn't verify this private chat's identity. No team action was taken."
+                )
+            elif self.workflows is not None:
+                reply = await self.workflows.handle(command, args, sender_id)
+            else:
+                reply = (
+                    "Team workflows are not enabled yet. An administrator must verify the live "
+                    "Google Sheet schema, Telegram identity mapping, and role-description source "
+                    "before Polaris can read or change team data."
+                )
         else:
-            reply = (
-                "Team workflows are not enabled yet. An administrator must verify the live "
-                "Google Sheet schema, Telegram identity mapping, and role-description source "
-                "before Polaris can read or change team data."
-            )
+            return
         await self._reply(chat_id, reply)
 
     async def _growth_reply(self, chat_id: int | str) -> str:
