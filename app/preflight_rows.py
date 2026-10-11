@@ -81,14 +81,18 @@ async def row_integrity_findings(client: GoogleSheetsClient) -> list[Finding]:
     active_chat_ids = _values(active_people, "Telegram Chat ID")
     blank_chat_count = sum(not value for value in active_chat_ids)
     duplicate_chat_count = _duplicate_count(active_chat_ids)
-    if blank_chat_count or duplicate_chat_count:
+    invalid_private_chat_count = sum(
+        not value.isdigit() or int(value) <= 0 for value in active_chat_ids if value
+    )
+    if blank_chat_count or duplicate_chat_count or invalid_private_chat_count:
         findings.append(
             Finding(
                 "BLOCKER",
                 "People Directory / Telegram identity",
                 f"Among active people, {blank_chat_count} Telegram Chat ID value(s) are blank "
-                f"and {duplicate_chat_count} value(s) are shared by multiple people. "
-                "The current command handler requires an unambiguous chat-to-person match; "
+                f"and {duplicate_chat_count} value(s) are shared by multiple people; "
+                f"{invalid_private_chat_count} value(s) are not positive private-chat IDs. "
+                "The command handler requires an unambiguous personal Telegram ID; "
                 "verify identity mapping before enabling team workflows.",
             )
         )
@@ -107,6 +111,50 @@ async def row_integrity_findings(client: GoogleSheetsClient) -> list[Finding]:
     configured_kpis = [
         row for row in kpis if row.get("KPI", "").strip()
     ]
+    kpi_setup_fields = (
+        "Team",
+        "Role",
+        "Definition / Measurement",
+        "Direction",
+        "Frequency",
+        "Target",
+        "Unit",
+        "Owner",
+        "Data Source",
+        "Active?",
+    )
+    incomplete_kpi_rows = sum(
+        any(not row.get(field, "").strip() for field in kpi_setup_fields)
+        for row in configured_kpis
+    )
+    if not configured_kpis:
+        findings.append(
+            Finding(
+                "BLOCKER",
+                "KPI Register / configuration readiness",
+                "No configured KPIs found. Configure at least one real KPI before staging "
+                "team workflows; unused template rows are ignored.",
+            )
+        )
+    elif incomplete_kpi_rows:
+        findings.append(
+            Finding(
+                "BLOCKER",
+                "KPI Register / configuration readiness",
+                f"{incomplete_kpi_rows} of {len(configured_kpis)} configured KPI row(s) "
+                "have one or more blank required setup fields.",
+            )
+        )
+    else:
+        findings.append(
+            Finding(
+                "PASS",
+                "KPI Register / configuration readiness",
+                f"All required setup fields are populated for {len(configured_kpis)} "
+                "configured KPI(s).",
+            )
+        )
+
     invalid_kpi_owners = sum(
         bool(row.get("Owner Person ID", "").strip())
         and row.get("Owner Person ID", "").strip() not in known_person_ids

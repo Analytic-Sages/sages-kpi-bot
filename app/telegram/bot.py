@@ -19,6 +19,7 @@ HELP_TEXT = (
     "/goal <KPI name> <target> — update your assigned KPI target\n"
     "/blocker <description> — report a blocker\n"
     "/jd [name or @handle] — view an authoritative role description\n"
+    "/whoami — show your personal Telegram ID for account mapping\n"
     "/growth — view private website and YouTube growth metrics (when enabled)"
 )
 
@@ -93,29 +94,73 @@ class TelegramBot:
         parts = text.strip().split(maxsplit=1)
         command = parts[0].split("@", maxsplit=1)[0].lower()
         args = parts[1].strip() if len(parts) > 1 else ""
-        if command not in {"/start", "/help", "/status", "/goal", "/blocker", "/jd", "/growth"}:
+        if command not in {
+            "/start", "/help", "/whoami", "/status", "/goal", "/blocker", "/jd", "/growth"
+        }:
             return
 
         sender_id = sender.get("id") if isinstance(sender, dict) else None
+        chat_type = chat.get("type")
         logger.info(
-            "telegram_command_received command=%s chat_id=%s sender_id=%s",
+            "telegram_command_received command=%s chat_id=%s sender_id=%s chat_type=%s",
             command,
             chat_id,
             sender_id,
+            chat_type,
         )
         if command in {"/start", "/help"}:
             reply = HELP_TEXT
+        elif command == "/whoami":
+            if chat_type != "private" or not isinstance(sender_id, (int, str)):
+                reply = (
+                    "For privacy, /whoami works only in a private chat with "
+                    "@AnalyticSagesPolarisBot. Open the bot and send /whoami there."
+                )
+            elif str(chat_id) != str(sender_id):
+                reply = "I couldn't verify this private chat's identity."
+            else:
+                reply = (
+                    f"Your Telegram user ID is {sender_id}. Share it with your team "
+                    "administrator through an approved private channel so it can be "
+                    "mapped to your Person ID in the People Directory."
+                )
         elif command == "/growth":
             reply = await self._growth_reply(chat_id)
-        elif self.workflows is not None:
-            reply = await self.workflows.handle(command, args, chat_id)
+        elif command in {"/status", "/goal", "/blocker", "/jd"}:
+            # Team identity is a person's private Telegram chat ID, not a shared
+            # group chat ID. Fail closed for group/supergroup commands to prevent
+            # personal accountability data or command arguments being processed there.
+            if chat_type != "private":
+                reply = (
+                    "For privacy, team commands must be used in a private chat with "
+                    "@AnalyticSagesPolarisBot. Open the bot and send /start, then retry "
+                    "your command here. Team commands are not processed in groups."
+                )
+            elif not isinstance(sender_id, (int, str)) or str(sender_id) != str(chat_id):
+                reply = (
+                    "I couldn't verify this private chat's identity. No team action was taken."
+                )
+            elif self.workflows is not None:
+                reply = await self.workflows.handle(command, args, sender_id)
+            else:
+                reply = (
+                    "Team workflows are not enabled yet. An administrator must verify the live "
+                    "Google Sheet schema, Telegram identity mapping, and role-description source "
+                    "before Polaris can read or change team data."
+                )
         else:
-            reply = (
-                "Team workflows are not enabled yet. An administrator must verify the live "
-                "Google Sheet schema, Telegram identity mapping, and role-description source "
-                "before Polaris can read or change team data."
-            )
-        await self._reply(chat_id, reply)
+            return
+        await self._reply(
+            chat_id,
+            reply,
+            safe=command in {"/start", "/help", "/whoami"},
+            staging_team=(
+                command in {"/status", "/goal", "/blocker", "/jd"}
+                and chat_type == "private"
+                and isinstance(sender_id, (int, str))
+                and str(chat_id) == str(sender_id)
+            ),
+        )
 
     async def _growth_reply(self, chat_id: int | str) -> str:
         if not self.settings.enable_analytics or self.analytics is None:
@@ -137,8 +182,20 @@ class TelegramBot:
             logger.error("growth_analytics_command_failed error_type=%s", type(exc).__name__)
             return "Growth analytics could not be loaded. Check provider credentials and logs."
 
-    async def _reply(self, chat_id: int | str, text: str) -> None:
-        if self.settings.dry_run:
+    async def _reply(
+        self,
+        chat_id: int | str,
+        text: str,
+        *,
+        safe: bool = False,
+        staging_team: bool = False,
+    ) -> None:
+        allowed_dry_run_reply = (
+            self.settings.enable_safe_telegram_replies and safe
+        ) or (
+            self.settings.enable_dry_run_team_replies and staging_team
+        )
+        if self.settings.dry_run and not allowed_dry_run_reply:
             logger.info("telegram_dry_run_message_suppressed chat_id=%s", chat_id)
             return
         try:

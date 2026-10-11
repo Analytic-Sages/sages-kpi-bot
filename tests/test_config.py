@@ -8,6 +8,9 @@ def test_defaults_are_safe_for_local_development():
     settings = Settings(_env_file=None)
     assert settings.app_env == "development"
     assert settings.dry_run is True
+    assert settings.enable_team_writes is False
+    assert settings.enable_dry_run_team_replies is False
+    assert settings.enable_safe_telegram_replies is False
     assert settings.timezone == "Africa/Lagos"
     assert settings.telegram_bot_token is None
 

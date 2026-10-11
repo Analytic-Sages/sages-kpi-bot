@@ -47,6 +47,7 @@ class TelegramClient:
         commands = [
             {"command": "start", "description": "Start Polaris and see what it does"},
             {"command": "help", "description": "Show available commands"},
+            {"command": "whoami", "description": "Show your personal Telegram ID privately"},
             {"command": "status", "description": "View your accountability status"},
             {"command": "goal", "description": "Set a KPI goal"},
             {"command": "blocker", "description": "Report a blocker"},

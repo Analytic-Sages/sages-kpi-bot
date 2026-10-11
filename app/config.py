@@ -30,6 +30,8 @@ class Settings(BaseSettings):
     preflight_token: str | None = None
 
     enable_team_workflows: bool = False
+    # Separately gate Google Sheets mutations from read-only team commands.
+    enable_team_writes: bool = False
     enable_scheduled_workflows: bool = False
     enable_analytics: bool = False
     enable_webhooks: bool = False
@@ -49,6 +51,10 @@ class Settings(BaseSettings):
     max_reminders_per_task_per_day: int = Field(default=2, ge=1, le=20)
     reminder_receipts_db_path: str = "data/polaris-reminders.sqlite3"
     dry_run: bool = True
+    # Allow only /start, /help, and /whoami replies while other side effects remain in dry-run.
+    enable_safe_telegram_replies: bool = False
+    # Allow private team-command responses while dry-run continues to suppress writes.
+    enable_dry_run_team_replies: bool = False
 
     model_config = SettingsConfigDict(
         env_file=".env",
