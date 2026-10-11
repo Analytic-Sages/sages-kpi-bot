@@ -81,14 +81,18 @@ async def row_integrity_findings(client: GoogleSheetsClient) -> list[Finding]:
     active_chat_ids = _values(active_people, "Telegram Chat ID")
     blank_chat_count = sum(not value for value in active_chat_ids)
     duplicate_chat_count = _duplicate_count(active_chat_ids)
-    if blank_chat_count or duplicate_chat_count:
+    invalid_private_chat_count = sum(
+        not value.isdigit() or int(value) <= 0 for value in active_chat_ids if value
+    )
+    if blank_chat_count or duplicate_chat_count or invalid_private_chat_count:
         findings.append(
             Finding(
                 "BLOCKER",
                 "People Directory / Telegram identity",
                 f"Among active people, {blank_chat_count} Telegram Chat ID value(s) are blank "
-                f"and {duplicate_chat_count} value(s) are shared by multiple people. "
-                "The current command handler requires an unambiguous chat-to-person match; "
+                f"and {duplicate_chat_count} value(s) are shared by multiple people; "
+                f"{invalid_private_chat_count} value(s) are not positive private-chat IDs. "
+                "The command handler requires an unambiguous personal Telegram ID; "
                 "verify identity mapping before enabling team workflows.",
             )
         )
