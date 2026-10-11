@@ -13,6 +13,7 @@ Until every gate below is approved, keep these Render variables:
 APP_ENV=production
 DRY_RUN=true
 ENABLE_SAFE_TELEGRAM_REPLIES=false
+ENABLE_DRY_RUN_TEAM_REPLIES=false
 ENABLE_TEAM_WORKFLOWS=false
 ENABLE_SCHEDULED_WORKFLOWS=false
 ENABLE_ANALYTICS=false
