@@ -51,6 +51,7 @@ def test_deployment_preflight_returns_only_header_check_findings(monkeypatch):
     monkeypatch.setattr(main_module.settings, "google_sheet_id", "spreadsheet-id")
     monkeypatch.setattr(main_module.GoogleSheetsClient, "from_settings", lambda settings: object())
     monkeypatch.setattr(main_module, "sheet_findings", AsyncMock(return_value=[]))
+    monkeypatch.setattr(main_module, "row_integrity_findings", AsyncMock(return_value=[]))
 
     response = client.get(
         "/admin/preflight",
