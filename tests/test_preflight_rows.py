@@ -18,7 +18,7 @@ def valid_records():
             {"Person ID": "P2", "Status": "Inactive", "Telegram Chat ID": ""},
         ],
         "KPI Register": [
-            {"KPI ID": "K1", "Owner Person ID": "P1"},
+            {"KPI ID": "K1", "KPI": "Active KPI", "Owner Person ID": "P1"},
         ],
         "Weekly KPI Log": [
             {"KPI ID": "K1", "Owner Person ID": "P1"},
@@ -46,7 +46,7 @@ def test_row_integrity_blocks_duplicate_identity_and_broken_references():
     records["People Directory"].append(
         {"Person ID": "P1", "Status": "Active", "Telegram Chat ID": "101"}
     )
-    records["KPI Register"].append({"KPI ID": "K2", "Owner Person ID": "missing"})
+    records["KPI Register"].append({"KPI ID": "K2", "KPI": "Another KPI", "Owner Person ID": "missing"})
     records["Weekly KPI Log"].append(
         {"KPI ID": "missing", "Owner Person ID": "missing"}
     )
@@ -78,3 +78,35 @@ def test_row_integrity_blocks_duplicate_identity_and_broken_references():
         for f in findings
     )
     assert all("missing" not in f.message for f in findings)
+
+
+
+def test_unused_preallocated_kpi_template_rows_do_not_require_formula_owner():
+    records = valid_records()
+    records["KPI Register"].extend(
+        [
+            {"KPI ID": "K2", "KPI": "", "Owner": "", "Owner Person ID": ""},
+            {"KPI ID": "K3", "KPI": "", "Owner": "", "Owner Person ID": ""},
+        ]
+    )
+
+    findings = asyncio.run(row_integrity_findings(FakeRowsClient(records)))
+    owner_check = next(
+        f for f in findings if f.component == "KPI Register / owner references"
+    )
+    assert owner_check.severity == "PASS"
+    assert "1 configured KPI" in owner_check.message
+
+
+def test_configured_kpi_with_blank_formula_owner_is_blocked():
+    records = valid_records()
+    records["KPI Register"].append(
+        {"KPI ID": "K2", "KPI": "Another KPI", "Owner": "", "Owner Person ID": ""}
+    )
+
+    findings = asyncio.run(row_integrity_findings(FakeRowsClient(records)))
+    owner_check = next(
+        f for f in findings if f.component == "KPI Register / owner references"
+    )
+    assert owner_check.severity == "BLOCKER"
+    assert "1 blank" in owner_check.message
