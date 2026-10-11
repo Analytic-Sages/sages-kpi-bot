@@ -42,7 +42,8 @@ async def row_integrity_findings(client: GoogleSheetsClient) -> list[Finding]:
     kpi_ids = _values(kpis, "KPI ID")
     task_ids = _values(tasks, "Task ID")
     known_person_ids = {value for value in person_ids if value}
-    # Only configured KPI rows are valid targets for weekly logs; preallocated template IDs are not KPIs.
+    # Only configured KPI rows are valid targets for weekly logs;
+    # preallocated template IDs are not KPIs.
     known_kpi_ids = {
         row.get("KPI ID", "").strip()
         for row in kpis
