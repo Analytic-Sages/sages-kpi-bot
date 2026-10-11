@@ -207,3 +207,54 @@ async def test_safe_onboarding_flag_never_allows_team_command_replies_in_dry_run
 
     workflows.handle.assert_awaited_once_with("/status", "", 456)
     client.send_message.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_dry_run_team_reply_flag_allows_private_response_only():
+    client = AsyncMock()
+    workflows = AsyncMock()
+    workflows.handle.return_value = "DRY RUN: no changes were made."
+    settings = Settings(
+        _env_file=None,
+        dry_run=True,
+        enable_dry_run_team_replies=True,
+    )
+    bot = TelegramBot(client, settings, workflows=workflows)
+
+    await bot.handle_update({
+        "update_id": 24,
+        "message": {
+            "chat": {"id": 456, "type": "private"},
+            "from": {"id": 456},
+            "text": "/goal Qualified Leads 20",
+        },
+    })
+
+    workflows.handle.assert_awaited_once_with("/goal", "Qualified Leads 20", 456)
+    client.send_message.assert_awaited_once_with(
+        456, "DRY RUN: no changes were made."
+    )
+
+
+@pytest.mark.asyncio
+async def test_dry_run_team_reply_flag_does_not_allow_group_replies_or_workflows():
+    client = AsyncMock()
+    workflows = AsyncMock()
+    settings = Settings(
+        _env_file=None,
+        dry_run=True,
+        enable_dry_run_team_replies=True,
+    )
+    bot = TelegramBot(client, settings, workflows=workflows)
+
+    await bot.handle_update({
+        "update_id": 25,
+        "message": {
+            "chat": {"id": -500, "type": "supergroup"},
+            "from": {"id": 456},
+            "text": "/status",
+        },
+    })
+
+    workflows.handle.assert_not_awaited()
+    client.send_message.assert_not_awaited()
