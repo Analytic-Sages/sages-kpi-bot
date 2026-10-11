@@ -32,7 +32,10 @@ def valid_records():
 def test_row_integrity_passes_for_unique_ids_and_resolved_references():
     findings = asyncio.run(row_integrity_findings(FakeRowsClient(valid_records())))
     assert not any(f.severity == "BLOCKER" for f in findings)
-    assert any(f.component == "People Directory / Telegram identity" and f.severity == "PASS" for f in findings)
+    assert any(
+        f.component == "People Directory / Telegram identity" and f.severity == "PASS"
+        for f in findings
+    )
     inventory = next(f for f in findings if f.component == "Team data inventory")
     assert "1 people" in inventory.message
     assert "P1" not in inventory.message
@@ -48,9 +51,26 @@ def test_row_integrity_blocks_duplicate_identity_and_broken_references():
     records["Master Task Tracker"].append({"Task ID": "T2", "Assigned To ID": "missing"})
 
     findings = asyncio.run(row_integrity_findings(FakeRowsClient(records)))
-    assert any(f.severity == "BLOCKER" and "duplicated identifier" in f.message for f in findings)
-    assert any(f.severity == "BLOCKER" and f.component == "People Directory / Telegram identity" for f in findings)
-    assert any(f.severity == "BLOCKER" and f.component == "KPI Register / owner references" for f in findings)
-    assert any(f.severity == "BLOCKER" and f.component == "Weekly KPI Log / references" for f in findings)
-    assert any(f.severity == "BLOCKER" and f.component == "Master Task Tracker / assignee references" for f in findings)
+    assert any(
+        f.severity == "BLOCKER" and "duplicated identifier" in f.message
+        for f in findings
+    )
+    assert any(
+        f.severity == "BLOCKER"
+        and f.component == "People Directory / Telegram identity"
+        for f in findings
+    )
+    assert any(
+        f.severity == "BLOCKER" and f.component == "KPI Register / owner references"
+        for f in findings
+    )
+    assert any(
+        f.severity == "BLOCKER" and f.component == "Weekly KPI Log / references"
+        for f in findings
+    )
+    assert any(
+        f.severity == "BLOCKER"
+        and f.component == "Master Task Tracker / assignee references"
+        for f in findings
+    )
     assert all("missing" not in f.message for f in findings)
