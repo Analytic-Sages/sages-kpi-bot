@@ -42,7 +42,13 @@ async def row_integrity_findings(client: GoogleSheetsClient) -> list[Finding]:
     kpi_ids = _values(kpis, "KPI ID")
     task_ids = _values(tasks, "Task ID")
     known_person_ids = {value for value in person_ids if value}
-    known_kpi_ids = {value for value in kpi_ids if value}
+    # Only configured KPI rows are valid targets for weekly logs;
+    # preallocated template IDs are not KPIs.
+    known_kpi_ids = {
+        row.get("KPI ID", "").strip()
+        for row in kpis
+        if row.get("KPI", "").strip() and row.get("KPI ID", "").strip()
+    }
 
     checks = (
         ("People Directory", "Person ID", person_ids),
@@ -95,26 +101,39 @@ async def row_integrity_findings(client: GoogleSheetsClient) -> list[Finding]:
             )
         )
 
+    # KPI Register is preallocated with template rows (including generated KPI IDs).
+    # A row becomes a real KPI only when its human-entered KPI field is populated.
+    # Formula-driven Owner Person ID cells on unused template rows are expected to be blank.
+    configured_kpis = [
+        row for row in kpis if row.get("KPI", "").strip()
+    ]
     invalid_kpi_owners = sum(
         bool(row.get("Owner Person ID", "").strip())
         and row.get("Owner Person ID", "").strip() not in known_person_ids
-        for row in kpis
+        for row in configured_kpis
     )
-    missing_kpi_owners = sum(not row.get("Owner Person ID", "").strip() for row in kpis)
+    missing_kpi_owners = sum(
+        not row.get("Owner Person ID", "").strip() for row in configured_kpis
+    )
     if invalid_kpi_owners or missing_kpi_owners:
         findings.append(
             Finding(
                 "BLOCKER",
                 "KPI Register / owner references",
                 (
-                    f"Found {missing_kpi_owners} blank and {invalid_kpi_owners} "
-                    "unknown KPI owner reference(s)."
+                    f"Among {len(configured_kpis)} configured KPI(s), found "
+                    f"{missing_kpi_owners} blank and {invalid_kpi_owners} "
+                    "unknown owner reference(s)."
                 ),
             )
         )
     else:
         findings.append(
-            Finding("PASS", "KPI Register / owner references", "KPI owner references resolve.")
+            Finding(
+                "PASS",
+                "KPI Register / owner references",
+                f"Owner references resolve for all {len(configured_kpis)} configured KPI(s).",
+            )
         )
 
     unknown_log_kpis = sum(
