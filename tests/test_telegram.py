@@ -159,3 +159,51 @@ async def test_whoami_does_not_disclose_id_in_group_chat():
     client.send_message.assert_awaited_once()
     assert "private chat" in client.send_message.await_args.args[1]
     assert "456" not in client.send_message.await_args.args[1]
+
+
+@pytest.mark.asyncio
+async def test_safe_onboarding_reply_can_be_enabled_without_disabling_dry_run():
+    client = AsyncMock()
+    settings = Settings(
+        _env_file=None,
+        dry_run=True,
+        enable_safe_telegram_replies=True,
+    )
+    bot = TelegramBot(client, settings)
+
+    await bot.handle_update({
+        "update_id": 22,
+        "message": {
+            "chat": {"id": 456, "type": "private"},
+            "from": {"id": 456},
+            "text": "/whoami",
+        },
+    })
+
+    client.send_message.assert_awaited_once()
+    assert "456" in client.send_message.await_args.args[1]
+
+
+@pytest.mark.asyncio
+async def test_safe_onboarding_flag_never_allows_team_command_replies_in_dry_run():
+    client = AsyncMock()
+    workflows = AsyncMock()
+    workflows.handle.return_value = "private status"
+    settings = Settings(
+        _env_file=None,
+        dry_run=True,
+        enable_safe_telegram_replies=True,
+    )
+    bot = TelegramBot(client, settings, workflows=workflows)
+
+    await bot.handle_update({
+        "update_id": 23,
+        "message": {
+            "chat": {"id": 456, "type": "private"},
+            "from": {"id": 456},
+            "text": "/status",
+        },
+    })
+
+    workflows.handle.assert_awaited_once_with("/status", "", 456)
+    client.send_message.assert_not_awaited()
