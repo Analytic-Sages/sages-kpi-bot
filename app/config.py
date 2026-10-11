@@ -51,6 +51,8 @@ class Settings(BaseSettings):
     dry_run: bool = True
     # Allow only /start, /help, and /whoami replies while other side effects remain in dry-run.
     enable_safe_telegram_replies: bool = False
+    # Allow private team-command responses while dry-run continues to suppress writes.
+    enable_dry_run_team_replies: bool = False
 
     model_config = SettingsConfigDict(
         env_file=".env",
