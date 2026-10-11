@@ -15,6 +15,7 @@ DRY_RUN=true
 ENABLE_SAFE_TELEGRAM_REPLIES=false
 ENABLE_DRY_RUN_TEAM_REPLIES=false
 ENABLE_TEAM_WORKFLOWS=false
+ENABLE_TEAM_WRITES=false
 ENABLE_SCHEDULED_WORKFLOWS=false
 ENABLE_ANALYTICS=false
 ENABLE_WEBHOOKS=false
@@ -127,6 +128,13 @@ dry-run previews; writes remain suppressed by the workflow service's dry-run gua
 remain rejected before workflow dispatch and do not receive team replies. Keep scheduled workflows,
 analytics, and webhooks disabled. Restore `ENABLE_DRY_RUN_TEAM_REPLIES=false` after the test window.
 Do not disable dry-run or approve live writes until the separate write-approval gate is complete.
+
+For a later read-only live-reply stage, after the private dry-run tests pass, keep
+`ENABLE_TEAM_WRITES=false`. You may set `DRY_RUN=false` only after approving live message delivery,
+while the separate write flag remains false. The app then continues to force `/goal` and `/blocker`
+into dry-run mode even though private replies are delivered. Only set `ENABLE_TEAM_WRITES=true`
+after a separate approval of spreadsheet mutation targets, permissions, auditability, and rollback.
+
 ## 4. Gate team workflows separately
 
 Before setting `ENABLE_TEAM_WORKFLOWS=true`, all of the following must be true:
@@ -143,9 +151,9 @@ Before setting `ENABLE_TEAM_WORKFLOWS=true`, all of the following must be true:
 
 Keep `DRY_RUN=true` initially even after enabling the team workflow object. Validate read paths and
 dry-run previews. Only approve real writes after reviewing each write target and testing it against
-a non-production copy or explicitly approved pilot rows. Because the current `/goal` and
-`/blocker` handlers can write when both workflows are enabled and dry-run is false, do not turn
-off dry-run until write behavior has been separately accepted.
+a non-production copy or explicitly approved pilot rows. Because `/goal` and `/blocker` can mutate Sheets, `ENABLE_TEAM_WRITES` must remain false until
+those writes are separately accepted. The application forces team workflows into dry-run mode when
+this flag is false, even if `DRY_RUN=false` for approved reply delivery.
 
 ## 5. Gate scheduled workflows
 
