@@ -19,6 +19,7 @@ HELP_TEXT = (
     "/goal <KPI name> <target> — update your assigned KPI target\n"
     "/blocker <description> — report a blocker\n"
     "/jd [name or @handle] — view an authoritative role description\n"
+    "/whoami — show your personal Telegram ID for account mapping\n"
     "/growth — view private website and YouTube growth metrics (when enabled)"
 )
 
@@ -93,7 +94,9 @@ class TelegramBot:
         parts = text.strip().split(maxsplit=1)
         command = parts[0].split("@", maxsplit=1)[0].lower()
         args = parts[1].strip() if len(parts) > 1 else ""
-        if command not in {"/start", "/help", "/status", "/goal", "/blocker", "/jd", "/growth"}:
+        if command not in {
+            "/start", "/help", "/whoami", "/status", "/goal", "/blocker", "/jd", "/growth"
+        }:
             return
 
         sender_id = sender.get("id") if isinstance(sender, dict) else None
@@ -107,6 +110,20 @@ class TelegramBot:
         )
         if command in {"/start", "/help"}:
             reply = HELP_TEXT
+        elif command == "/whoami":
+            if chat_type != "private" or not isinstance(sender_id, (int, str)):
+                reply = (
+                    "For privacy, /whoami works only in a private chat with "
+                    "@AnalyticSagesPolarisBot. Open the bot and send /whoami there."
+                )
+            elif str(chat_id) != str(sender_id):
+                reply = "I couldn't verify this private chat's identity."
+            else:
+                reply = (
+                    f"Your Telegram user ID is {sender_id}. Share it with your team "
+                    "administrator through an approved private channel so it can be "
+                    "mapped to your Person ID in the People Directory."
+                )
         elif command == "/growth":
             reply = await self._growth_reply(chat_id)
         elif command in {"/status", "/goal", "/blocker", "/jd"}:
