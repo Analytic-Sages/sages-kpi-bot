@@ -46,7 +46,9 @@ def test_row_integrity_blocks_duplicate_identity_and_broken_references():
     records["People Directory"].append(
         {"Person ID": "P1", "Status": "Active", "Telegram Chat ID": "101"}
     )
-    records["KPI Register"].append({"KPI ID": "K2", "KPI": "Another KPI", "Owner Person ID": "missing"})
+    records["KPI Register"].append(
+        {"KPI ID": "K2", "KPI": "Another KPI", "Owner Person ID": "missing"}
+    )
     records["Weekly KPI Log"].append(
         {"KPI ID": "missing", "Owner Person ID": "missing"}
     )
