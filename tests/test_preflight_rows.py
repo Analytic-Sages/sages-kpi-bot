@@ -37,7 +37,7 @@ def test_row_integrity_passes_for_unique_ids_and_resolved_references():
         for f in findings
     )
     inventory = next(f for f in findings if f.component == "Team data inventory")
-    assert "1 people" in inventory.message
+    assert "2 people" in inventory.message
     assert "P1" not in inventory.message
 
 
@@ -47,8 +47,12 @@ def test_row_integrity_blocks_duplicate_identity_and_broken_references():
         {"Person ID": "P1", "Status": "Active", "Telegram Chat ID": "101"}
     )
     records["KPI Register"].append({"KPI ID": "K2", "Owner Person ID": "missing"})
-    records["Weekly KPI Log"].append({"KPI ID": "missing", "Owner Person ID": "missing"})
-    records["Master Task Tracker"].append({"Task ID": "T2", "Assigned To ID": "missing"})
+    records["Weekly KPI Log"].append(
+        {"KPI ID": "missing", "Owner Person ID": "missing"}
+    )
+    records["Master Task Tracker"].append(
+        {"Task ID": "T2", "Assigned To ID": "missing"}
+    )
 
     findings = asyncio.run(row_integrity_findings(FakeRowsClient(records)))
     assert any(
