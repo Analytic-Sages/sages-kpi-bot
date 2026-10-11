@@ -18,7 +18,21 @@ def valid_records():
             {"Person ID": "P2", "Status": "Inactive", "Telegram Chat ID": ""},
         ],
         "KPI Register": [
-            {"KPI ID": "K1", "KPI": "Active KPI", "Owner Person ID": "P1"},
+            {
+                "KPI ID": "K1",
+                "Team": "Growth",
+                "Role": "Analyst",
+                "KPI": "Active KPI",
+                "Definition / Measurement": "Qualified leads",
+                "Direction": "Higher is better",
+                "Frequency": "Weekly",
+                "Target": "10",
+                "Unit": "leads",
+                "Owner": "Ada Example",
+                "Owner Person ID": "P1",
+                "Data Source": "CRM",
+                "Active?": "TRUE",
+            },
         ],
         "Weekly KPI Log": [
             {"KPI ID": "K1", "Owner Person ID": "P1"},
@@ -112,3 +126,32 @@ def test_configured_kpi_with_blank_formula_owner_is_blocked():
     )
     assert owner_check.severity == "BLOCKER"
     assert "1 blank" in owner_check.message
+
+
+
+def test_no_configured_kpis_blocks_staging_readiness():
+    records = valid_records()
+    records["KPI Register"] = [
+        {"KPI ID": "K1", "KPI": "", "Owner Person ID": ""}
+    ]
+
+    findings = asyncio.run(row_integrity_findings(FakeRowsClient(records)))
+    readiness = next(
+        f for f in findings
+        if f.component == "KPI Register / configuration readiness"
+    )
+    assert readiness.severity == "BLOCKER"
+    assert "No configured KPIs" in readiness.message
+
+
+def test_configured_kpi_with_missing_setup_field_is_blocked():
+    records = valid_records()
+    records["KPI Register"][0]["Target"] = ""
+
+    findings = asyncio.run(row_integrity_findings(FakeRowsClient(records)))
+    readiness = next(
+        f for f in findings
+        if f.component == "KPI Register / configuration readiness"
+    )
+    assert readiness.severity == "BLOCKER"
+    assert "1 of 1 configured KPI" in readiness.message
