@@ -38,6 +38,12 @@
 - [ ] Configure the OAuth consent screen and refresh token for the dedicated Google account in Render, then run preflight against the live spreadsheet.
 - [ ] Verify Telegram identity/routing, GA4/YouTube access, persistent SQLite storage, HTTPS, and single-instance operation.
 - [ ] Complete staging acceptance tests before enabling any live outbound workflows.
+- [x] Add private-chat-only team command identity resolution and a private `/whoami` onboarding command.
+- [x] Reject group IDs in the People Directory identity preflight.
+- [x] Block staging readiness when no real KPI is configured or configured KPI setup fields are incomplete.
+- [x] Document the gated rollout and acceptance sequence in `docs/SAFE_STAGING_ROLLOUT.md`.
+- [ ] Populate and verify one to three owner-approved pilot KPIs in the live workbook; re-run the protected preflight.
+- [ ] Collect and privately map active members' personal Telegram IDs; re-run preflight and test private command routing.
 
 ## Design constraints to preserve
 
