@@ -154,6 +154,12 @@ class TelegramBot:
             chat_id,
             reply,
             safe=command in {"/start", "/help", "/whoami"},
+            staging_team=(
+                command in {"/status", "/goal", "/blocker", "/jd"}
+                and chat_type == "private"
+                and isinstance(sender_id, (int, str))
+                and str(chat_id) == str(sender_id)
+            ),
         )
 
     async def _growth_reply(self, chat_id: int | str) -> str:
@@ -177,11 +183,19 @@ class TelegramBot:
             return "Growth analytics could not be loaded. Check provider credentials and logs."
 
     async def _reply(
-        self, chat_id: int | str, text: str, *, safe: bool = False
+        self,
+        chat_id: int | str,
+        text: str,
+        *,
+        safe: bool = False,
+        staging_team: bool = False,
     ) -> None:
-        if self.settings.dry_run and not (
+        allowed_dry_run_reply = (
             self.settings.enable_safe_telegram_replies and safe
-        ):
+        ) or (
+            self.settings.enable_dry_run_team_replies and staging_team
+        )
+        if self.settings.dry_run and not allowed_dry_run_reply:
             logger.info("telegram_dry_run_message_suppressed chat_id=%s", chat_id)
             return
         try:
