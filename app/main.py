@@ -73,10 +73,18 @@ def _telegram_health(request: Request) -> tuple[bool, dict[str, object]]:
         and age_seconds <= TELEGRAM_HEALTH_MAX_AGE_SECONDS
     )
     return healthy, {
-        "status": "healthy" if healthy else "degraded" if configured else "not_configured",
+        "status": (
+            "healthy"
+            if healthy
+            else "degraded"
+            if configured
+            else "not_configured"
+        ),
         "configured": configured,
         "polling_task_alive": task_alive,
-        "last_successful_poll_age_seconds": round(age_seconds, 1) if age_seconds is not None else None,
+        "last_successful_poll_age_seconds": (
+            round(age_seconds, 1) if age_seconds is not None else None
+        ),
     }
 
 
