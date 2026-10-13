@@ -41,7 +41,9 @@ async def _supervise_telegram(bot: TelegramBot, stop_event: asyncio.Event) -> No
         except asyncio.CancelledError:
             raise
         except Exception as exc:
-            logger.exception("telegram_polling_supervisor_caught_exit error_type=%s", type(exc).__name__)
+            logger.exception(
+                "telegram_polling_supervisor_caught_exit error_type=%s", type(exc).__name__
+            )
         if stop_event.is_set():
             return
         logger.error("telegram_polling_task_exited action=restart delay_seconds=3")
@@ -57,9 +59,19 @@ def _telegram_health(request: Request) -> tuple[bool, dict[str, object]]:
     bot = getattr(request.app.state, "telegram_bot", None)
     task = getattr(request.app.state, "telegram_task", None)
     last_success = getattr(bot, "last_poll_success_at", None) if bot else None
-    age_seconds = (datetime.now(UTC) - last_success).total_seconds() if last_success is not None else None
+    age_seconds = (
+        (datetime.now(UTC) - last_success).total_seconds()
+        if last_success is not None
+        else None
+    )
     task_alive = task is not None and not task.done()
-    healthy = bool(configured and bot is not None and task_alive and age_seconds is not None and age_seconds <= TELEGRAM_HEALTH_MAX_AGE_SECONDS)
+    healthy = bool(
+        configured
+        and bot is not None
+        and task_alive
+        and age_seconds is not None
+        and age_seconds <= TELEGRAM_HEALTH_MAX_AGE_SECONDS
+    )
     return healthy, {
         "status": "healthy" if healthy else "degraded" if configured else "not_configured",
         "configured": configured,
@@ -117,7 +129,10 @@ async def lifespan(application: FastAPI):
         try:
             await telegram_bot.start()
             application.state.telegram_bot = telegram_bot
-            telegram_task = asyncio.create_task(_supervise_telegram(telegram_bot, telegram_stop_event), name="polaris-telegram-polling-supervisor")
+            telegram_task = asyncio.create_task(
+                _supervise_telegram(telegram_bot, telegram_stop_event),
+                name="polaris-telegram-polling-supervisor",
+            )
             application.state.telegram_task = telegram_task
             if settings.enable_scheduled_workflows and sheets is not None:
                 scheduled = ScheduledWorkflowService(sheets, telegram_client, settings)
@@ -199,20 +214,26 @@ async def readiness(request: Request) -> JSONResponse:
             "integrations": {
                 "telegram": telegram_details["status"],
                 "telegram_polling_task_alive": telegram_details["polling_task_alive"],
-                "telegram_last_successful_poll_age_seconds": telegram_details["last_successful_poll_age_seconds"],
+                "telegram_last_successful_poll_age_seconds": (
+                    telegram_details["last_successful_poll_age_seconds"]
+                ),
                 "google_sheets": (
                     "enabled_for_team_or_scheduled_workflows"
                     if settings.enable_team_workflows or settings.enable_scheduled_workflows
                     else "not_enabled"
                 ),
                 "scheduled_workflows": (
-                    "enabled_dry_run" if settings.enable_scheduled_workflows and settings.dry_run
-                    else "enabled" if settings.enable_scheduled_workflows
+                    "enabled_dry_run"
+                    if settings.enable_scheduled_workflows and settings.dry_run
+                    else "enabled"
+                    if settings.enable_scheduled_workflows
                     else "not_enabled"
                 ),
                 "analytics": (
-                    "enabled_dry_run" if settings.enable_analytics and settings.dry_run
-                    else "enabled" if settings.enable_analytics
+                    "enabled_dry_run"
+                    if settings.enable_analytics and settings.dry_run
+                    else "enabled"
+                    if settings.enable_analytics
                     else "not_enabled"
                 ),
                 "webhooks": webhook_state,
