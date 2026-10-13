@@ -218,7 +218,11 @@ async def readiness(request: Request) -> JSONResponse:
     return JSONResponse(
         status_code=503 if settings.telegram_bot_token and not telegram_healthy else 200,
         content={
-            "status": "ready" if not settings.telegram_bot_token or telegram_healthy else "degraded",
+            "status": (
+                "ready"
+                if not settings.telegram_bot_token or telegram_healthy
+                else "degraded"
+            ),
             "integrations": {
                 "telegram": telegram_details["status"],
                 "telegram_polling_task_alive": telegram_details["polling_task_alive"],
