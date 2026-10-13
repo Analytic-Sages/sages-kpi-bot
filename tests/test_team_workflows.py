@@ -110,11 +110,14 @@ async def test_missing_telegram_identity_header_fails_closed():
 
 
 @pytest.mark.asyncio
-async def test_status_and_goal_prefer_concise_kpi_label_over_definition():
+async def test_status_and_goal_prefer_kpi_name_over_formula_helper_text():
     records = sample_records()
-    records["KPI Register"][0]["KPI Label"] = "Qualified Leads"
-    records["KPI Register"][0]["KPI"] = (
+    records["KPI Register"][0]["KPI"] = "Qualified Leads"
+    records["KPI Register"][0]["Definition / Measurement"] = (
         "Count the number of qualified leads accepted by the CRM each week."
+    )
+    records["KPI Register"][0]["KPI Label"] = (
+        "1. Qualified Leads: Count the number of qualified leads accepted by the CRM each week."
     )
     sheets = FakeSheets(records)
     service = TeamWorkflowService(sheets, dry_run=True)

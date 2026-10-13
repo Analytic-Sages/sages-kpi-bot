@@ -15,8 +15,8 @@ MAX_JD_CHARS = 3000
 
 
 def _kpi_label(row: dict[str, str]) -> str:
-    """Prefer the concise formula-derived label when the tracker provides it."""
-    return row.get("KPI Label", "").strip() or row.get("KPI", "").strip() or "Unnamed KPI"
+    """Prefer the manually maintained KPI name over formula-generated helper text."""
+    return row.get("KPI", "").strip() or row.get("KPI Label", "").strip() or "Unnamed KPI"
 
 
 class TeamWorkflowError(RuntimeError):
