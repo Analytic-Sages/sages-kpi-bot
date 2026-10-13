@@ -107,3 +107,25 @@ async def test_missing_telegram_identity_header_fails_closed():
     sheets = FakeSheets(records)
     response = await TeamWorkflowService(sheets).handle("/status", "", "123")
     assert "couldn't safely complete" in response
+
+
+@pytest.mark.asyncio
+async def test_status_and_goal_prefer_concise_kpi_label_over_definition():
+    records = sample_records()
+    records["KPI Register"][0]["KPI Label"] = "Qualified Leads"
+    records["KPI Register"][0]["KPI"] = (
+        "Count the number of qualified leads accepted by the CRM each week."
+    )
+    sheets = FakeSheets(records)
+    service = TeamWorkflowService(sheets, dry_run=True)
+
+    status = await service.handle("/status", "", "123")
+    preview = await service.handle("/goal", "Qualified Leads 15", "123")
+
+    assert "Qualified Leads: 8" in status
+    assert "Count the number" not in status
+    assert preview == (
+        "DRY RUN: I would update Qualified Leads target to 15. "
+        "No spreadsheet changes were made."
+    )
+    sheets.update_record.assert_not_awaited()

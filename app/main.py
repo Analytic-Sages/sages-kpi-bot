@@ -4,6 +4,7 @@ import logging
 import secrets
 import sqlite3
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
@@ -29,10 +30,66 @@ from app.webhooks.store import (
 settings = get_settings()
 configure_logging(settings.log_level)
 logger = logging.getLogger("polaris")
+TELEGRAM_HEALTH_MAX_AGE_SECONDS = 90
+
+
+async def _supervise_telegram(bot: TelegramBot, stop_event: asyncio.Event) -> None:
+    """Restart polling if its coroutine exits unexpectedly; stop cleanly on shutdown."""
+    while not stop_event.is_set():
+        try:
+            await bot.run()
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            logger.exception(
+                "telegram_polling_supervisor_caught_exit error_type=%s", type(exc).__name__
+            )
+        if stop_event.is_set():
+            return
+        logger.error("telegram_polling_task_exited action=restart delay_seconds=3")
+        try:
+            await asyncio.wait_for(stop_event.wait(), timeout=3.0)
+        except TimeoutError:
+            pass
+
+
+def _telegram_health(request: Request) -> tuple[bool, dict[str, object]]:
+    """Report recent successful Telegram long-poll activity, not just token presence."""
+    configured = bool(settings.telegram_bot_token)
+    bot = getattr(request.app.state, "telegram_bot", None)
+    task = getattr(request.app.state, "telegram_task", None)
+    last_success = getattr(bot, "last_poll_success_at", None) if bot else None
+    age_seconds = (
+        (datetime.now(UTC) - last_success).total_seconds()
+        if last_success is not None
+        else None
+    )
+    task_alive = task is not None and not task.done()
+    healthy = bool(
+        configured
+        and bot is not None
+        and task_alive
+        and age_seconds is not None
+        and age_seconds <= TELEGRAM_HEALTH_MAX_AGE_SECONDS
+    )
+    return healthy, {
+        "status": (
+            "healthy"
+            if healthy
+            else "degraded"
+            if configured
+            else "not_configured"
+        ),
+        "configured": configured,
+        "polling_task_alive": task_alive,
+        "last_successful_poll_age_seconds": (
+            round(age_seconds, 1) if age_seconds is not None else None
+        ),
+    }
 
 
 @asynccontextmanager
-async def lifespan(_: FastAPI):
+async def lifespan(application: FastAPI):
     logger.info(
         "application_starting app=%s environment=%s dry_run=%s timezone=%s webhooks_enabled=%s",
         settings.app_name,
@@ -44,6 +101,9 @@ async def lifespan(_: FastAPI):
     telegram_client: TelegramClient | None = None
     telegram_bot: TelegramBot | None = None
     telegram_task: asyncio.Task[None] | None = None
+    telegram_stop_event = asyncio.Event()
+    application.state.telegram_bot = None
+    application.state.telegram_task = None
     scheduler = None
     if settings.telegram_bot_token:
         workflows: TeamWorkflowService | None = None
@@ -76,7 +136,12 @@ async def lifespan(_: FastAPI):
         )
         try:
             await telegram_bot.start()
-            telegram_task = asyncio.create_task(telegram_bot.run(), name="polaris-telegram-polling")
+            application.state.telegram_bot = telegram_bot
+            telegram_task = asyncio.create_task(
+                _supervise_telegram(telegram_bot, telegram_stop_event),
+                name="polaris-telegram-polling-supervisor",
+            )
+            application.state.telegram_task = telegram_task
             if settings.enable_scheduled_workflows and sheets is not None:
                 scheduled = ScheduledWorkflowService(sheets, telegram_client, settings)
                 scheduler = build_scheduler(scheduled)
@@ -96,6 +161,7 @@ async def lifespan(_: FastAPI):
     finally:
         if scheduler is not None:
             scheduler.shutdown(wait=False)
+        telegram_stop_event.set()
         if telegram_bot is not None:
             await telegram_bot.stop()
         if telegram_task is not None:
@@ -132,8 +198,16 @@ async def liveness() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.get("/health/telegram", tags=["health"])
+async def telegram_health(request: Request) -> JSONResponse:
+    """Health check for Telegram polling; use separately from HTTP liveness."""
+    healthy, details = _telegram_health(request)
+    return JSONResponse(status_code=200 if healthy else 503, content=details)
+
+
 @app.get("/health/ready", tags=["health"])
-async def readiness() -> JSONResponse:
+async def readiness(request: Request) -> JSONResponse:
+    telegram_healthy, telegram_details = _telegram_health(request)
     webhook_state = (
         "enabled"
         if settings.enable_webhooks and settings.webhook_secret
@@ -142,24 +216,36 @@ async def readiness() -> JSONResponse:
         else "not_enabled"
     )
     return JSONResponse(
-        status_code=200,
+        status_code=503 if settings.telegram_bot_token and not telegram_healthy else 200,
         content={
-            "status": "ready",
+            "status": (
+                "ready"
+                if not settings.telegram_bot_token or telegram_healthy
+                else "degraded"
+            ),
             "integrations": {
-                "telegram": "configured" if settings.telegram_bot_token else "not_configured",
+                "telegram": telegram_details["status"],
+                "telegram_polling_task_alive": telegram_details["polling_task_alive"],
+                "telegram_last_successful_poll_age_seconds": (
+                    telegram_details["last_successful_poll_age_seconds"]
+                ),
                 "google_sheets": (
                     "enabled_for_team_or_scheduled_workflows"
                     if settings.enable_team_workflows or settings.enable_scheduled_workflows
                     else "not_enabled"
                 ),
                 "scheduled_workflows": (
-                    "enabled_dry_run" if settings.enable_scheduled_workflows and settings.dry_run
-                    else "enabled" if settings.enable_scheduled_workflows
+                    "enabled_dry_run"
+                    if settings.enable_scheduled_workflows and settings.dry_run
+                    else "enabled"
+                    if settings.enable_scheduled_workflows
                     else "not_enabled"
                 ),
                 "analytics": (
-                    "enabled_dry_run" if settings.enable_analytics and settings.dry_run
-                    else "enabled" if settings.enable_analytics
+                    "enabled_dry_run"
+                    if settings.enable_analytics and settings.dry_run
+                    else "enabled"
+                    if settings.enable_analytics
                     else "not_enabled"
                 ),
                 "webhooks": webhook_state,

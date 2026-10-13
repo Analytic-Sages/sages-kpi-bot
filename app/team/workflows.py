@@ -14,6 +14,11 @@ _ACTIVE_VALUES = {"active", "current", "employed"}
 MAX_JD_CHARS = 3000
 
 
+def _kpi_label(row: dict[str, str]) -> str:
+    """Prefer the concise formula-derived label when the tracker provides it."""
+    return row.get("KPI Label", "").strip() or row.get("KPI", "").strip() or "Unnamed KPI"
+
+
 class TeamWorkflowError(RuntimeError):
     """Raised when team data cannot be safely used for a workflow."""
 
@@ -100,6 +105,7 @@ class TeamWorkflowService:
             return f"Status for {person['Full Name']}: no active KPIs are assigned in the register."
         lines = [f"**Status — {person['Full Name']}**"]
         for kpi in person_kpis[:5]:
+            label = _kpi_label(kpi)
             observations = [
                 log for log in logs
                 if log.get("KPI ID", "").strip() == kpi.get("KPI ID", "").strip()
@@ -107,13 +113,13 @@ class TeamWorkflowService:
             latest = max(observations, key=lambda item: item.get("Week Start", ""), default=None)
             if latest:
                 lines.append(
-                    f"• {kpi.get('KPI', 'Unnamed KPI')}: {latest.get('Actual', '—')} "
+                    f"• {label}: {latest.get('Actual', '—')} "
                     f"(target {kpi.get('Target', '—')}; "
                     f"{latest.get('Status', 'status unavailable')})"
                 )
             else:
                 lines.append(
-                    f"• {kpi.get('KPI', 'Unnamed KPI')}: no weekly result recorded "
+                    f"• {label}: no weekly result recorded "
                     f"(target {kpi.get('Target', '—')})"
                 )
         if len(person_kpis) > 5:
@@ -135,7 +141,7 @@ class TeamWorkflowService:
             raise TeamWorkflowError("KPI Register is missing required fields")
         matches = [
             row for row in kpis
-            if row.get("KPI", "").strip().casefold() == metric.casefold()
+            if _kpi_label(row).casefold() == metric.casefold()
             and row.get("Owner Person ID", "").strip() == person["Person ID"]
             and row.get("Active?", "").strip().casefold() in _TRUE_VALUES
         ]
@@ -149,7 +155,7 @@ class TeamWorkflowService:
             raise TeamWorkflowError("KPI has no stable KPI ID")
         if self.dry_run:
             return (
-                f"DRY RUN: I would update {matches[0]['KPI']} target to "
+                f"DRY RUN: I would update {_kpi_label(matches[0])} target to "
                 f"{target.replace(',', '')}. No spreadsheet changes were made."
             )
         await self.sheets.update_record(
@@ -158,7 +164,7 @@ class TeamWorkflowService:
             key_value=kpi_id,
             values={"Target": target.replace(",", "")},
         )
-        return f"Target updated for {matches[0]['KPI']}: {target}."
+        return f"Target updated for {_kpi_label(matches[0])}: {target}."
 
     async def _blocker(self, person: dict[str, str], args: str) -> str:
         description = args.strip()

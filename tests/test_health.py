@@ -60,3 +60,41 @@ def test_deployment_preflight_returns_only_header_check_findings(monkeypatch):
 
     assert response.status_code == 200
     assert response.json() == {"status": "passed", "checks": []}
+
+
+def test_telegram_health_is_degraded_when_not_configured(monkeypatch):
+    monkeypatch.setattr(main_module.settings, "telegram_bot_token", None)
+    response = client.get("/health/telegram")
+    assert response.status_code == 503
+    assert response.json()["status"] == "not_configured"
+
+
+def test_telegram_health_requires_recent_successful_poll(monkeypatch):
+    from datetime import UTC, datetime, timedelta
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(main_module.settings, "telegram_bot_token", "configured")
+    bot = SimpleNamespace(last_poll_success_at=datetime.now(UTC) - timedelta(minutes=5))
+    task = SimpleNamespace(done=lambda: False)
+    monkeypatch.setattr(app.state, "telegram_bot", bot, raising=False)
+    monkeypatch.setattr(app.state, "telegram_task", task, raising=False)
+
+    response = client.get("/health/telegram")
+    assert response.status_code == 503
+    assert response.json()["status"] == "degraded"
+    assert response.json()["polling_task_alive"] is True
+
+
+def test_telegram_health_is_healthy_when_polling_is_recent(monkeypatch):
+    from datetime import UTC, datetime
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(main_module.settings, "telegram_bot_token", "configured")
+    bot = SimpleNamespace(last_poll_success_at=datetime.now(UTC))
+    task = SimpleNamespace(done=lambda: False)
+    monkeypatch.setattr(app.state, "telegram_bot", bot, raising=False)
+    monkeypatch.setattr(app.state, "telegram_task", task, raising=False)
+
+    response = client.get("/health/telegram")
+    assert response.status_code == 200
+    assert response.json()["status"] == "healthy"

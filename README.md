@@ -45,8 +45,11 @@ Use a dedicated account rather than a personal employee account where practical.
 ## Health checks
 
 - `GET /` — service identity.
-- `GET /health/live` — process liveness.
-- `GET /health/ready` — configured/enabled integration flags. This is not a provider connectivity test.
+- `GET /health/live` — HTTP process liveness only; it does not prove Telegram is polling.
+- `GET /health/telegram` — recent successful Telegram `getUpdates` polling plus supervisor-task liveness. Returns `503` if Telegram is configured but polling is stale or unhealthy.
+- `GET /health/ready` — configured/enabled integration flags and Telegram polling health. This is not a Google Sheets, GA4, or YouTube provider connectivity test.
+
+For Render free-tier deployments, an external HTTP monitor such as UptimeRobot can request `/health/live` periodically to reduce idle spin-down. Add a separate monitor for `/health/telegram` to alert on Telegram polling degradation. The second monitor reports a failure; it does not restart the Telegram task itself. The application supervisor retries unexpected polling-coroutine exits, but no external monitor can guarantee that a free Render service stays awake or recover a suspended/terminated host. Use an always-on worker/hosting plan if the required service-level availability cannot tolerate free-tier sleep or restarts.
 
 ## Read-only production preflight
 
