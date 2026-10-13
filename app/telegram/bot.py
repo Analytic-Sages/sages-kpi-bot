@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from datetime import UTC, datetime
 from typing import Any
 
 from app.analytics.service import GrowthAnalyticsService
@@ -40,6 +41,7 @@ class TelegramBot:
         self.analytics = analytics
         self._stop = asyncio.Event()
         self._offset: int | None = None
+        self.last_poll_success_at: datetime | None = None
 
     async def start(self) -> None:
         await self.client.set_commands()
@@ -54,6 +56,7 @@ class TelegramBot:
         while not self._stop.is_set():
             try:
                 updates = await self.client.get_updates(self._offset)
+                self.last_poll_success_at = datetime.now(UTC)
                 for update in updates:
                     update_id = update.get("update_id")
                     if isinstance(update_id, int):
