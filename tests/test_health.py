@@ -22,7 +22,9 @@ def test_liveness_probe():
     assert response.json() == {"status": "ok"}
 
 
-def test_readiness_does_not_claim_integrations_are_connected():
+def test_readiness_does_not_claim_integrations_are_connected(monkeypatch):
+    monkeypatch.setattr(main_module.settings, "telegram_bot_token", None)
+
     response = client.get("/health/ready")
     assert response.status_code == 200
     payload = response.json()

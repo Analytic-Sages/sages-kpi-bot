@@ -91,7 +91,7 @@ class TelegramBot:
         if not isinstance(chat, dict) or not isinstance(text, str):
             return
         chat_id = chat.get("id")
-        if not isinstance(chat_id, (int, str)):
+        if not isinstance(chat_id, int | str):
             return
 
         parts = text.strip().split(maxsplit=1)
@@ -114,7 +114,7 @@ class TelegramBot:
         if command in {"/start", "/help"}:
             reply = HELP_TEXT
         elif command == "/whoami":
-            if chat_type != "private" or not isinstance(sender_id, (int, str)):
+            if chat_type != "private" or not isinstance(sender_id, int | str):
                 reply = (
                     "For privacy, /whoami works only in a private chat with "
                     "@AnalyticSagesPolarisBot. Open the bot and send /whoami there."
@@ -139,7 +139,7 @@ class TelegramBot:
                     "@AnalyticSagesPolarisBot. Open the bot and send /start, then retry "
                     "your command here. Team commands are not processed in groups."
                 )
-            elif not isinstance(sender_id, (int, str)) or str(sender_id) != str(chat_id):
+            elif not isinstance(sender_id, int | str) or str(sender_id) != str(chat_id):
                 reply = (
                     "I couldn't verify this private chat's identity. No team action was taken."
                 )
@@ -160,7 +160,7 @@ class TelegramBot:
             staging_team=(
                 command in {"/status", "/goal", "/blocker", "/jd"}
                 and chat_type == "private"
-                and isinstance(sender_id, (int, str))
+                and isinstance(sender_id, int | str)
                 and str(chat_id) == str(sender_id)
             ),
         )
