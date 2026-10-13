@@ -124,5 +124,8 @@ async def test_status_and_goal_prefer_concise_kpi_label_over_definition():
 
     assert "Qualified Leads: 8" in status
     assert "Count the number" not in status
-    assert "DRY RUN: I would update Qualified Leads target to 15" == preview
+    assert preview == (
+        "DRY RUN: I would update Qualified Leads target to 15. "
+        "No spreadsheet changes were made."
+    )
     sheets.update_record.assert_not_awaited()
