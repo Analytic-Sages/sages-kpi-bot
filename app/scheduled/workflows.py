@@ -17,6 +17,11 @@ logger = logging.getLogger(__name__)
 SCHEDULE_TIMEZONE = "UTC"
 
 
+def _kpi_label(row: dict[str, str]) -> str:
+    """Prefer the concise formula-derived label when the tracker provides it."""
+    return row.get("KPI Label", "").strip() or row.get("KPI", "").strip() or "Unnamed KPI"
+
+
 class ScheduledWorkflowService:
     """Compose scheduled messages and send only to the configured private team chat."""
 
@@ -67,7 +72,7 @@ class ScheduledWorkflowService:
             else:
                 for row in active[:30]:
                     latest = latest_by_kpi.get(row.get("KPI ID", "").strip())
-                    label = row.get("KPI", "Unnamed KPI")
+                    label = _kpi_label(row)
                     target = row.get("Target", "—")
                     if latest is None:
                         lines.append(f"• {label}: no weekly actual recorded (target {target})")
