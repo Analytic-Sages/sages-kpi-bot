@@ -176,9 +176,11 @@ class TeamWorkflowService:
                 "configured. Your message was not stored; please report it to your team lead."
             )
         required = {"Blocker ID", "Person ID", "Full Name", "Description", "Reported At", "Status"}
-        existing = await self.sheets.read_records(self.blocker_worksheet)
-        if not existing or not required.issubset(existing[0]):
-            raise TeamWorkflowError("Configured blocker worksheet is missing required headers")
+        headers = await self.sheets.read_headers(self.blocker_worksheet)
+        if not required.issubset(headers):
+            raise TeamWorkflowError(
+                "Configured blocker worksheet is missing required headers"
+            )
         if self.dry_run:
             return (
                 f"DRY RUN: I would record this blocker for {person['Full Name']}. "
