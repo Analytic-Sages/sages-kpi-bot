@@ -202,6 +202,34 @@ async def test_blocker_rejects_unknown_task_id_without_writing():
     sheets.append_record.assert_not_awaited()
 
 
+
+@pytest.mark.asyncio
+async def test_blocker_rejects_ambiguous_duplicate_task_ids():
+    records = sample_records()
+    records["Master Task Tracker"].append(
+        {"Task ID": "T001", "Task Name": "Duplicate task ID"}
+    )
+    headers = {
+        "Blocker Log Worksheet": [
+            "Blocker ID",
+            "Task ID",
+            "Person ID",
+            "Full Name",
+            "Description",
+            "Reported At",
+            "Status",
+        ]
+    }
+    sheets = FakeSheets(records, headers=headers)
+    service = TeamWorkflowService(
+        sheets, blocker_worksheet="Blocker Log Worksheet", dry_run=False
+    )
+
+    response = await service.handle("/blocker", "T001 Waiting for review", "123")
+
+    assert "couldn't find exactly one task with ID T001" in response
+    sheets.append_record.assert_not_awaited()
+
 @pytest.mark.asyncio
 async def test_blocker_live_write_stores_task_id_separately():
     records = sample_records()
