@@ -206,6 +206,8 @@ class TeamWorkflowService:
                 f"I couldn't find exactly one task with ID {task_id} in the Master Task Tracker. "
                 "Check the task ID and try again. No changes were made."
             )
+        # Store the canonical ID from the tracker, even if the command used different casing.
+        task_id = task_matches[0]["Task ID"].strip()
 
         if self.dry_run:
             return (
