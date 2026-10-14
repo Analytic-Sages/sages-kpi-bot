@@ -167,29 +167,58 @@ class TeamWorkflowService:
         return f"Target updated for {_kpi_label(matches[0])}: {target}."
 
     async def _blocker(self, person: dict[str, str], args: str) -> str:
-        description = args.strip()
-        if not description:
-            return "Usage: /blocker <describe the blocker>"
+        parts = args.strip().split(maxsplit=1)
+        if len(parts) != 2 or not parts[0].strip() or not parts[1].strip():
+            return "Usage: /blocker <Task ID> <describe the blocker>"
+
+        task_id, description = parts[0].strip(), parts[1].strip()
         if not self.blocker_worksheet:
             return (
                 "Blocker capture is not enabled yet because no verified blocker log is "
                 "configured. Your message was not stored; please report it to your team lead."
             )
-        required = {"Blocker ID", "Person ID", "Full Name", "Description", "Reported At", "Status"}
+
+        required = {
+            "Blocker ID",
+            "Task ID",
+            "Person ID",
+            "Full Name",
+            "Description",
+            "Reported At",
+            "Status",
+        }
         headers = await self.sheets.read_headers(self.blocker_worksheet)
         if not required.issubset(headers):
             raise TeamWorkflowError(
                 "Configured blocker worksheet is missing required headers"
             )
+
+        task_headers = await self.sheets.read_headers("Master Task Tracker")
+        if "Task ID" not in task_headers:
+            raise TeamWorkflowError("Master Task Tracker is missing the Task ID header")
+        tasks = await self.sheets.read_records("Master Task Tracker")
+        task_matches = [
+            row for row in tasks
+            if row.get("Task ID", "").strip().casefold() == task_id.casefold()
+        ]
+        if len(task_matches) != 1:
+            return (
+                f"I couldn't find exactly one task with ID {task_id} in the Master Task Tracker. "
+                "Check the task ID and try again. No changes were made."
+            )
+        # Store the canonical ID from the tracker, even if the command used different casing.
+        task_id = task_matches[0]["Task ID"].strip()
+
         if self.dry_run:
             return (
-                f"DRY RUN: I would record this blocker for {person['Full Name']}. "
-                "No spreadsheet changes were made."
+                f"DRY RUN: I would record a blocker for task {task_id} "
+                f"for {person['Full Name']}. No spreadsheet changes were made."
             )
         await self.sheets.append_record(
             self.blocker_worksheet,
             {
                 "Blocker ID": str(uuid4()),
+                "Task ID": task_id,
                 "Person ID": person["Person ID"],
                 "Full Name": person["Full Name"],
                 "Description": description,
@@ -197,7 +226,7 @@ class TeamWorkflowService:
                 "Status": "Open",
             },
         )
-        return "Blocker recorded and marked Open."
+        return f"Blocker recorded for task {task_id} and marked Open."
 
     async def _job_description(self, person: dict[str, str], args: str) -> str:
         if not self.job_descriptions_worksheet:

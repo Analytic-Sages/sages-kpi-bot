@@ -144,6 +144,10 @@ Before setting `ENABLE_TEAM_WORKFLOWS=true`, all of the following must be true:
 - Pilot KPIs are approved and their Owner dropdowns resolve through formulas.
 - Private identity matching is confirmed; group commands are rejected.
 - The blocker destination worksheet and its headers are verified if blocker capture is to be used.
+- The Blocker Log worksheet includes `Blocker ID`, `Task ID`, `Person ID`, `Full Name`,
+  `Description`, `Reported At`, and `Status` headers.
+- Each `/blocker` command uses `/blocker <Task ID> <description>`; Polaris must find exactly
+  one matching `Task ID` in the Master Task Tracker before previewing or recording a blocker.
 - The authoritative Job Descriptions worksheet and its headers are verified if `/jd` is to be used.
 - A dedicated Google account has only the required spreadsheet permissions. Prefer Viewer until a
   specific approved write workflow needs Editor.
