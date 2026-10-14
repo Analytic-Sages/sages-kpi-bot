@@ -18,7 +18,7 @@ HELP_TEXT = (
     "Available commands:\n"
     "/status — view your accountability status\n"
     "/goal <KPI name> <target> — update your assigned KPI target\n"
-    "/blocker <description> — report a blocker\n"
+    "/blocker <Task ID> <description> — report a blocker for a tracked task\n"
     "/jd [name or @handle] — view an authoritative role description\n"
     "/whoami — show your personal Telegram ID for account mapping\n"
     "/growth — view private website and YouTube growth metrics (when enabled)"
