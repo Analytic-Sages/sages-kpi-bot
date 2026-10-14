@@ -50,7 +50,7 @@ class TelegramClient:
             {"command": "whoami", "description": "Show your personal Telegram ID privately"},
             {"command": "status", "description": "View your accountability status"},
             {"command": "goal", "description": "Set a KPI goal"},
-            {"command": "blocker", "description": "Report a blocker"},
+            {"command": "blocker", "description": "Report a blocker for a tracked task"},
             {"command": "jd", "description": "Check role and job-description alignment"},
             {"command": "growth", "description": "View private website and YouTube growth metrics"},
         ]
