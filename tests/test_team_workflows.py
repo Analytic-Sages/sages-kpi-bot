@@ -272,7 +272,7 @@ async def test_blocker_requires_task_id_and_description():
     sheets = FakeSheets(sample_records())
     service = TeamWorkflowService(sheets, blocker_worksheet="Blocker Log Worksheet")
 
-    response = await service.handle("/blocker", "Waiting for access", "123")
+    response = await service.handle("/blocker", "Waiting", "123")
 
     assert response == "Usage: /blocker <Task ID> <describe the blocker>"
     sheets.append_record.assert_not_awaited()
