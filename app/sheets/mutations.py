@@ -1,4 +1,4 @@
-""""Allowlisted, audited, dry-run-first Google Sheets mutations."""
+"""Allowlisted, audited, dry-run-first Google Sheets mutations."""
 from __future__ import annotations
 
 import asyncio
