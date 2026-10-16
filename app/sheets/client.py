@@ -158,8 +158,10 @@ class GoogleSheetsClient:
         key_header: str,
         key_value: str,
         values: dict[str, Any],
+        expected_values: dict[str, Any] | None = None,
+        value_input_option: str = "USER_ENTERED",
     ) -> int:
-        """Update one unique record and return its row number; reject ambiguous keys."""
+        """Update one unique record and return its row number; reject ambiguous/stale keys."""
         worksheet = self._worksheet(worksheet_name)
         grid = await self._api_call(
             worksheet.get_all_values, context=f"Unable to read worksheet: {worksheet_name}"
@@ -187,6 +189,20 @@ class GoogleSheetsClient:
                 f"found {len(matches)}"
             )
         row_number = matches[0]
+        if expected_values:
+            row = grid[row_number - 1]
+            for header, expected in expected_values.items():
+                if header not in headers:
+                    raise GoogleSheetsError(
+                        f"Expected-value header {header!r} missing from {worksheet_name}"
+                    )
+                column_index = headers.index(header)
+                actual = str(row[column_index]).strip() if column_index < len(row) else ""
+                expected_text = "" if expected is None else str(expected).strip()
+                if actual != expected_text:
+                    raise GoogleSheetsError(
+                        f"Record changed since it was loaded: {header!r} no longer matches"
+                    )
         updates = [
             {
                 "range": gspread.utils.rowcol_to_a1(row_number, headers.index(header) + 1),
@@ -196,7 +212,9 @@ class GoogleSheetsClient:
         ]
         if updates:
             await self._api_call(
-                lambda: worksheet.batch_update(updates, value_input_option="USER_ENTERED"),
+                lambda: worksheet.batch_update(
+                    updates, value_input_option=value_input_option
+                ),
                 context=f"Unable to update worksheet: {worksheet_name}",
             )
         return row_number
