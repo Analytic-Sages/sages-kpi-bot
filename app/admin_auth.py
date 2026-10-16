@@ -136,7 +136,10 @@ def create_admin_auth_router(settings: Settings) -> APIRouter:
     @router.get("/auth/callback")
     async def callback(request: Request, code: str | None = None, state: str | None = None):
         if not _configured(settings):
-            return JSONResponse(status_code=503, content={"detail": "Admin sign-in is not configured"})
+            return JSONResponse(
+                status_code=503,
+                content={"detail": "Admin sign-in is not configured"},
+            )
         flow_cookie = request.cookies.get(FLOW_COOKIE)
         if not code or not state or not flow_cookie:
             return JSONResponse(
@@ -201,7 +204,9 @@ def create_admin_auth_router(settings: Settings) -> APIRouter:
             logger.warning(
                 "admin_signin_failed reason=verification error_type=%s", type(exc).__name__
             )
-            return JSONResponse(status_code=401, content={"detail": "Sign-in could not be verified"})
+            return JSONResponse(
+                status_code=401, content={"detail": "Sign-in could not be verified"}
+            )
 
         session = _serializer(settings, "polaris-admin-session-v1").dumps(
             {"email": email, "csrf": secrets.token_urlsafe(32), "issued_at": int(time.time())}
@@ -255,7 +260,13 @@ def create_admin_auth_router(settings: Settings) -> APIRouter:
             httponly=True,
             samesite="lax",
         )
-        response.delete_cookie(FLOW_COOKIE, path="/auth", secure=settings.admin_cookie_secure, httponly=True, samesite="lax")
+        response.delete_cookie(
+            FLOW_COOKIE,
+            path="/auth",
+            secure=settings.admin_cookie_secure,
+            httponly=True,
+            samesite="lax",
+        )
         return response
 
     return router
