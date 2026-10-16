@@ -176,7 +176,9 @@ class SafeSheetMutationService:
                     before=before,
                     after=normalized_changes,
                 )
-                raise MutationRejected("Record changed since it was loaded; refresh before retrying")
+                raise MutationRejected(
+                    "Record changed since it was loaded; refresh before retrying"
+                )
 
             change_set = {
                 name: {"before": before[name], "after": normalized_changes[name]}
@@ -237,7 +239,8 @@ class SafeSheetMutationService:
                     after=normalized_changes,
                 )
                 raise MutationOutcomeUncertain(
-                    "The write result is uncertain. Refresh the record and audit log before retrying."
+                    "The write result is uncertain. Refresh the record and audit log "
+                    "before retrying."
                 ) from exc
 
             try:
