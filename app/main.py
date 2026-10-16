@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
+from app.admin_auth import create_admin_auth_router
 from app.analytics.service import GrowthAnalyticsService
 from app.config import get_settings
 from app.logging_config import configure_logging
@@ -181,6 +182,8 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+app.state.settings = settings
+app.include_router(create_admin_auth_router(settings))
 
 
 @app.get("/", tags=["system"])
