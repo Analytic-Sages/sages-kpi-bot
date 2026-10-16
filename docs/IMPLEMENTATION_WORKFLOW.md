@@ -39,10 +39,10 @@ ENABLE_TEAM_WORKFLOWS=false
 ## Stage 0 — Baseline and discovery
 
 ### Tasks
-- [ ] Confirm repository default branch and current main commit.
-- [ ] Inventory application entry points, configuration, Google Sheets client, Telegram workflows, scheduler, persistence, and tests.
-- [ ] Inventory CI commands and latest status checks.
-- [ ] Inspect workbook header contracts and distinguish human-editable from formula-derived fields.
+- [x] Confirm repository default branch and current main commit.
+- [x] Inventory core application entry point, configuration, Google Sheets client, Telegram workflows, scheduler, and representative tests.
+- [x] Inspect CI configuration and available status metadata; actual pass/fail remains unverified.
+- [ ] Inspect workbook header contracts against the live workbook and distinguish human-editable from formula-derived fields.
 - [ ] Review current auth/access controls; identify an approved admin authentication provider before adding write endpoints.
 - [ ] Confirm Render deployment shape, process count, persistent storage, and available frontend deployment target.
 - [ ] Re-run protected read-only preflight after the Operations Manager completes workbook updates.
@@ -50,7 +50,7 @@ ENABLE_TEAM_WORKFLOWS=false
 
 ### Exit gate
 - [ ] Baseline report identifies existing functionality, gaps, tests, deployment facts, and decisions still requiring owner approval.
-- [ ] No implementation assumptions are treated as verified until checked against source/configuration.
+- [x] Source-level assumptions are labelled separately from runtime/deployment facts.
 
 ## Stage 1 — Shared services and safe write path
 
@@ -230,3 +230,15 @@ ENABLE_TEAM_WORKFLOWS=false
 - [ ] Capture current deployed health and preflight results without including secrets or personal identifiers.
 
 Do not begin Stage 1 production-facing mutation work until the open baseline items are resolved or explicitly documented as blocked, with an agreed safe test strategy.
+
+
+### Runtime verification update
+
+- Latest `main` commit observed from GitHub: `940d5c8cd846c03b6c19326e7d1520fa2fd2cad4` (merge of PR #21, blocker task references).
+- GitHub combined status returned no status contexts for that commit or the documentation/fix PR heads at the time of inspection. Treat this as **unknown**, not green.
+- The workflow-run lookup returned no runs for the inspected PR heads. CI must be rechecked in GitHub before any merge.
+- The current verification channel could not retrieve the live Render health endpoints. No current production health claim is made.
+- The last known protected preflight result from the prior staging test was blocked by incomplete KPI configuration/owner references. The Operations Manager was still editing the workbook; this must be rerun after those edits are complete.
+- A separate Stage 0 privacy-hygiene PR was opened to remove Telegram chat/sender IDs from application logs: [PR #24](https://github.com/Analytic-Sages/sages-kpi-bot/pull/24). It is unmerged and CI has not been verified.
+
+**Current gate: Stage 0 remains open.** Do not treat the draft plan or privacy-hygiene PR as deployed or production-approved.
