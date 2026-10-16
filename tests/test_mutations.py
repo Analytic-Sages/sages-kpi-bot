@@ -204,3 +204,40 @@ async def test_sqlite_audit_log_persists_events_across_instances(tmp_path):
             "SELECT request_id, outcome FROM audit_events ORDER BY request_id"
         ).fetchall()
     assert rows == [("req-1", "verified"), ("req-2", "verified")]
+
+
+
+@pytest.mark.asyncio
+async def test_audit_failure_before_write_prevents_mutation(tmp_path):
+    class BrokenAudit:
+        async def record(self, event):
+            raise OSError("audit storage unavailable")
+
+    service, sheets, _ = make_service(
+        tmp_path, dry_run=False, writes_enabled=True, audit=BrokenAudit()
+    )
+    with pytest.raises(OSError, match="audit storage unavailable"):
+        await service.mutate(
+            actor_id="admin@example.test",
+            worksheet="KPI Register",
+            record_id="K001",
+            changes={"Target": "12"},
+            expected_values={"Target": "10"},
+        )
+    assert not sheets.update_record_calls
+
+
+@pytest.mark.asyncio
+async def test_write_flag_still_blocks_mutation_when_dry_run_is_false(tmp_path):
+    service, sheets, _ = make_service(
+        tmp_path, dry_run=False, writes_enabled=False, audit=RecordingAudit()
+    )
+    result = await service.mutate(
+        actor_id="admin@example.test",
+        worksheet="KPI Register",
+        record_id="K001",
+        changes={"Target": "12"},
+        expected_values={"Target": "10"},
+    )
+    assert result.status == "preview"
+    assert not sheets.update_record_calls
