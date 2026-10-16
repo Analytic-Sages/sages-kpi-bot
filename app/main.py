@@ -9,8 +9,8 @@ from datetime import UTC, datetime
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from app.analytics.service import GrowthAnalyticsService
 from app.admin_auth import create_admin_auth_router
+from app.analytics.service import GrowthAnalyticsService
 from app.config import get_settings
 from app.logging_config import configure_logging
 from app.preflight import sheet_findings
