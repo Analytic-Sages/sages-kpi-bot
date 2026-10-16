@@ -29,6 +29,14 @@ class Settings(BaseSettings):
     # Optional high-entropy bearer token protecting the read-only deployment preflight endpoint.
     preflight_token: str | None = None
 
+    # Google OIDC admin sign-in; all values are required to enable admin sessions.
+    admin_google_client_id: str | None = None
+    admin_google_client_secret: str | None = None
+    admin_google_redirect_uri: str | None = None
+    admin_emails: str = ""
+    admin_session_secret: str | None = None
+    admin_cookie_secure: bool = True
+
     enable_team_workflows: bool = False
     # Separately gate Google Sheets mutations from read-only team commands.
     enable_team_writes: bool = False
