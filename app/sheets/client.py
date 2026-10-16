@@ -25,6 +25,10 @@ class GoogleSheetsError(RuntimeError):
     """Raised for Google Sheets access or mutation failures."""
 
 
+class GoogleSheetsConflictError(GoogleSheetsError):
+    """Raised when a record no longer matches the expected mutation snapshot."""
+
+
 def google_auth_mode(settings: Settings) -> str:
     """Return the configured Google auth mode or raise a safe configuration error.
 
@@ -200,7 +204,7 @@ class GoogleSheetsClient:
                 actual = str(row[column_index]).strip() if column_index < len(row) else ""
                 expected_text = "" if expected is None else str(expected).strip()
                 if actual != expected_text:
-                    raise GoogleSheetsError(
+                    raise GoogleSheetsConflictError(
                         f"Record changed since it was loaded: {header!r} no longer matches"
                     )
         updates = [
