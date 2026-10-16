@@ -7,7 +7,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Any, Protocol
 from uuid import uuid4
 
-from app.sheets.client import GoogleSheetsClient
+from app.sheets.client import GoogleSheetsClient, GoogleSheetsConflictError
 
 
 class MutationRejected(ValueError):
@@ -211,6 +211,19 @@ class SafeSheetMutationService:
                     expected_values=normalized_expected,
                     value_input_option="RAW",
                 )
+            except GoogleSheetsConflictError as exc:
+                await self._audit(
+                    request=request,
+                    actor=actor,
+                    policy=policy,
+                    record_id=key_value,
+                    outcome="conflict",
+                    before=before,
+                    after=normalized_changes,
+                )
+                raise MutationRejected(
+                    "Record changed during the update; refresh before retrying"
+                ) from exc
             except Exception as exc:
                 await self._audit(
                     request=request,
