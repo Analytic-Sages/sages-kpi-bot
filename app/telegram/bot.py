@@ -104,11 +104,10 @@ class TelegramBot:
 
         sender_id = sender.get("id") if isinstance(sender, dict) else None
         chat_type = chat.get("type")
+        # Telegram IDs are personal identifiers; do not persist them in application logs.
         logger.info(
-            "telegram_command_received command=%s chat_id=%s sender_id=%s chat_type=%s",
+            "telegram_command_received command=%s chat_type=%s",
             command,
-            chat_id,
-            sender_id,
             chat_type,
         )
         if command in {"/start", "/help"}:
@@ -199,13 +198,12 @@ class TelegramBot:
             self.settings.enable_dry_run_team_replies and staging_team
         )
         if self.settings.dry_run and not allowed_dry_run_reply:
-            logger.info("telegram_dry_run_message_suppressed chat_id=%s", chat_id)
+            logger.info("telegram_dry_run_message_suppressed")
             return
         try:
             await self.client.send_message(chat_id, text)
         except TelegramAPIError as exc:
             logger.error(
-                "telegram_reply_failed chat_id=%s error_type=%s",
-                chat_id,
+                "telegram_reply_failed error_type=%s",
                 type(exc).__name__,
             )

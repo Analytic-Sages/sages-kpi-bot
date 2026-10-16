@@ -258,3 +258,32 @@ async def test_dry_run_team_reply_flag_does_not_allow_group_replies_or_workflows
 
     workflows.handle.assert_not_awaited()
     client.send_message.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_command_logs_do_not_include_telegram_identifiers(caplog):
+    import logging
+
+    client = AsyncMock()
+    workflows = AsyncMock()
+    workflows.handle.return_value = "private status"
+    bot = TelegramBot(
+        client,
+        Settings(_env_file=None, dry_run=True),
+        workflows=workflows,
+    )
+
+    with caplog.at_level(logging.INFO, logger="app.telegram.bot"):
+        await bot.handle_update({
+            "update_id": 26,
+            "message": {
+                "chat": {"id": 456, "type": "private"},
+                "from": {"id": 456},
+                "text": "/status",
+            },
+        })
+
+    assert "telegram_command_received" in caplog.text
+    assert "command=/status" in caplog.text
+    assert "chat_type=private" in caplog.text
+    assert "456" not in caplog.text
