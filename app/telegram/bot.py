@@ -104,11 +104,10 @@ class TelegramBot:
 
         sender_id = sender.get("id") if isinstance(sender, dict) else None
         chat_type = chat.get("type")
+        # Telegram IDs are personal identifiers; do not persist them in application logs.
         logger.info(
-            "telegram_command_received command=%s chat_id=%s sender_id=%s chat_type=%s",
+            "telegram_command_received command=%s chat_type=%s",
             command,
-            chat_id,
-            sender_id,
             chat_type,
         )
         if command in {"/start", "/help"}:
