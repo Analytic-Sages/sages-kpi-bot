@@ -54,6 +54,19 @@ ENABLE_TEAM_WORKFLOWS=false
 
 ## Stage 1 — Shared services and safe write path
 
+### Merged implementation status
+
+PR #25 is merged and CI passed. The reusable service currently provides:
+
+- Explicit per-worksheet policy allowlists; unconfigured worksheets fail closed.
+- Required trusted actor identity supplied by the caller (authentication is not implemented by the service).
+- Stable-key uniqueness checks, expected-value conflict checks, and allowlisted field validation.
+- Dry-run previews by default; live writes require both `dry_run=False` and `writes_enabled=True`.
+- Audit intent/outcome events, SQLite persistence, one-attempt write calls, and read-after-write verification.
+- An explicit uncertain-outcome error when a write or verification cannot safely be confirmed.
+
+These are generic service capabilities only. No admin API is wired to the service, no production task/KPI policies are configured, and no live workbook mutation has been accepted. Google Sheets does not provide an atomic compare-and-swap in this client; external edits can still race with the service's last-read/write boundary.
+
 ### Tasks
 - [ ] Separate task/KPI business rules from Telegram-specific command handling where needed.
 - [ ] Define typed, allowlisted mutation schemas for supported task/KPI fields.
@@ -222,8 +235,8 @@ ENABLE_TEAM_WORKFLOWS=false
 
 ### Stage 0 status
 **In progress — not passed.** Repository architecture and several critical files have been inspected. The following remain open:
-- [ ] Record the exact current `main` commit SHA and CI status.
-- [ ] Inspect the remainder of the Sheets client, reminder receipt persistence, scheduler, and relevant tests.
+- [x] Record the exact current `main` commit SHA and CI status.
+- [x] Inspect the Sheets client, reminder receipt persistence, scheduler, and relevant tests.
 - [ ] Confirm the admin authentication/session approach and approved admin identity source.
 - [ ] Verify the current Render deployment/instance/persistent-storage setup.
 - [ ] Re-run the protected read-only preflight after the Operations Manager finishes workbook edits.
@@ -232,14 +245,24 @@ ENABLE_TEAM_WORKFLOWS=false
 Do not begin Stage 1 production-facing mutation work until the open baseline items are resolved or explicitly documented as blocked, with an agreed safe test strategy.
 
 
-### Runtime verification update
+### Runtime verification update — 2026-10-17
 
-- Latest `main` commit observed from GitHub: `6bebdf1a8d8db02e78a599016d79c362d3c7fdba`, merging the Telegram log-redaction fix in PR #24.
-- PR #23 (implementation workflow) and PR #24 (Telegram log redaction) are both merged.
-- The status lookup returned no status contexts for the latest merge commit, so current CI status remains **unknown**, not green.
-- The first CI run for the safe-mutation PR failed Ruff on three overlong lines. Those lines were corrected; a passing CI run for the corrected head has not yet been observed.
-- The current verification channel could not retrieve the live Render health endpoints. No current production health claim is made.
-- The last known protected preflight result from the prior staging test was blocked by incomplete KPI configuration/owner references. Rerun after the Operations Manager confirms workbook edits are complete.
-- Stage 1 implementation is in draft PR #25. It adds a reusable service and tests but is not wired into FastAPI, has no admin API, and has no production mutation policy for the task tracker.
+- Current `main` commit: `4713977c9bbdea6d31524c08551b1fc2bd543653` (merge of PR #25).
+- PR #23 (implementation workflow), PR #24 (Telegram identifier log redaction), and PR #25 (audited dry-run-first Sheets mutation service) are merged.
+- CI on the PR #25 head passed both push and pull-request runs; the push workflow on merge commit `4713977c9bbdea6d31524c08551b1fc2bd543653` also passed: https://github.com/Analytic-Sages/sages-kpi-bot/actions/runs/38981537980.
+- A direct health-endpoint check could not be completed from the current verification environment because DNS resolution to `sages-kpi-bot.onrender.com` failed. Render runtime health, deployed SHA, process count, and persistent-storage behavior remain **unverified**.
+- The last known protected read-only preflight was blocked by incomplete KPI setup/owner references (79 of 116 configured KPI rows incomplete and missing owner references). This is historical evidence only; rerun after the Operations Manager confirms workbook changes are complete.
+- PR #25 adds a reusable `SafeSheetMutationService`, SQLite audit persistence, stale-snapshot checks, dry-run previews, single-attempt write calls, and read-after-write verification. It is not wired into FastAPI, does not define production task/KPI mutation policies, and does not enable live writes.
 
-**Current gate: Stage 0 runtime/data checks remain open, and Stage 1 is under review.** Do not treat the implementation PR as deployed or production-approved.
+### Stage 0 status — still open
+
+Source inventory and repository CI verification are complete. The remaining gates are external decisions/runtime checks:
+
+- [ ] Operations Manager confirms workbook updates are complete.
+- [ ] Run protected read-only `/admin/preflight` and review blockers without exposing private records.
+- [ ] Confirm live workbook headers and distinguish human-editable fields from formula-derived columns before defining task/KPI mutation policies.
+- [ ] Choose the admin authentication/session strategy and approved admin identity source.
+- [ ] Verify Render deployment SHA, instance/process count, and persistent storage for SQLite audit/receipt databases.
+- [ ] Capture current deployed health and preflight results without secrets or personal identifiers.
+
+**Current gate: Stage 0 is not passed.** Do not expose the mutation service through an API or start Stage 2 write endpoints until the remaining data, authentication, and deployment gates are recorded. Keep all production side-effect flags disabled.
