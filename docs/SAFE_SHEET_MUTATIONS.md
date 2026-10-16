@@ -14,6 +14,7 @@ Google Sheets remains the operational source of truth. The service requires a pe
 - Every changed field must be explicitly allowlisted and include the expected value loaded by the caller.
 - The service rejects missing/duplicate stable record IDs, unknown fields, stale snapshots, formula-like user input, and field values rejected by configured validators.
 - The Sheets adapter rechecks expected values in the same grid snapshot it uses to locate the row, then updates only the targeted cells using RAW input.
+- Write calls are not automatically retried: a timeout can happen after the provider has applied a mutation, and retrying an append can create duplicates. Reads may still use bounded retries.
 - An intent audit event is persisted before a live write. The service then reads the record back and only returns applied after the changed values match. Provider failures or failed verification return an uncertain outcome and must be reconciled before retrying.
 - Audit records are stored in SQLite at AUDIT_DB_PATH (default data/polaris-audit.sqlite3) when the host constructs SQLiteAuditLog. The host must provide durable persistent storage before using this in production.
 
@@ -36,6 +37,7 @@ The expected-value comparison detects stale data observed before the update and 
 - Formula-like input and invalid numeric targets are rejected.
 - Live path records intent, writes only allowed cells, verifies by read-after-write, then records a verified outcome.
 - Provider failure or verification failure is not reported as success.
+- Update and append requests are not blindly retried after uncertain provider failures.
 - Audit failure before the write prevents the write.
 - SQLite audit events persist across service/store instances.
 - Existing Sheets client tests remain green.
