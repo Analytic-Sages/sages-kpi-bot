@@ -54,7 +54,9 @@ def _admin_emails(settings: Settings) -> set[str]:
     return {value.strip().casefold() for value in settings.admin_emails.split(",") if value.strip()}
 
 
-def _safe_cookie(response: RedirectResponse | JSONResponse, settings: Settings, **kwargs: Any) -> None:
+def _safe_cookie(
+    response: RedirectResponse | JSONResponse, settings: Settings, **kwargs: Any
+) -> None:
     response.set_cookie(
         **kwargs,
         secure=settings.admin_cookie_secure,
@@ -134,18 +136,29 @@ def create_admin_auth_router(settings: Settings) -> APIRouter:
     @router.get("/auth/callback")
     async def callback(request: Request, code: str | None = None, state: str | None = None):
         if not _configured(settings):
-            return JSONResponse(status_code=503, content={"detail": "Admin sign-in is not configured"})
+            return JSONResponse(
+                status_code=503,
+                content={"detail": "Admin sign-in is not configured"},
+            )
         flow_cookie = request.cookies.get(FLOW_COOKIE)
         if not code or not state or not flow_cookie:
-            return JSONResponse(status_code=400, content={"detail": "Invalid sign-in response"})
+            return JSONResponse(
+                status_code=400, content={"detail": "Invalid sign-in response"}
+            )
         try:
             flow = _serializer(settings, "polaris-admin-oidc-flow-v1").loads(
                 flow_cookie, max_age=FLOW_MAX_AGE_SECONDS
             )
         except (BadSignature, SignatureExpired):
-            return JSONResponse(status_code=400, content={"detail": "Sign-in expired; please retry"})
-        if not isinstance(flow, dict) or not secrets.compare_digest(str(flow.get("state", "")), state):
-            return JSONResponse(status_code=400, content={"detail": "Invalid sign-in response"})
+            return JSONResponse(
+                status_code=400, content={"detail": "Sign-in expired; please retry"}
+            )
+        if not isinstance(flow, dict) or not secrets.compare_digest(
+            str(flow.get("state", "")), state
+        ):
+            return JSONResponse(
+                status_code=400, content={"detail": "Invalid sign-in response"}
+            )
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 token_response = await client.post(
@@ -180,14 +193,22 @@ def create_admin_auth_router(settings: Settings) -> APIRouter:
             email = email.strip().casefold()
             if email not in _admin_emails(settings):
                 logger.warning("admin_signin_rejected reason=not_allowlisted")
-                return JSONResponse(status_code=403, content={"detail": "This account is not authorized"})
+                return JSONResponse(
+                    status_code=403, content={"detail": "This account is not authorized"}
+                )
         except (httpx.HTTPError, ValueError, KeyError, TypeError):
             logger.warning("admin_signin_failed reason=provider_validation")
-            return JSONResponse(status_code=401, content={"detail": "Sign-in could not be verified"})
+            return JSONResponse(
+                status_code=401, content={"detail": "Sign-in could not be verified"}
+            )
         except Exception as exc:
             # Do not log provider responses, tokens, or exception strings.
-            logger.warning("admin_signin_failed reason=verification error_type=%s", type(exc).__name__)
-            return JSONResponse(status_code=401, content={"detail": "Sign-in could not be verified"})
+            logger.warning(
+                "admin_signin_failed reason=verification error_type=%s", type(exc).__name__
+            )
+            return JSONResponse(
+                status_code=401, content={"detail": "Sign-in could not be verified"}
+            )
 
         session = _serializer(settings, "polaris-admin-session-v1").dumps(
             {"email": email, "csrf": secrets.token_urlsafe(32), "issued_at": int(time.time())}
@@ -241,7 +262,13 @@ def create_admin_auth_router(settings: Settings) -> APIRouter:
             httponly=True,
             samesite="lax",
         )
-        response.delete_cookie(FLOW_COOKIE, path="/auth", secure=settings.admin_cookie_secure, httponly=True, samesite="lax")
+        response.delete_cookie(
+            FLOW_COOKIE,
+            path="/auth",
+            secure=settings.admin_cookie_secure,
+            httponly=True,
+            samesite="lax",
+        )
         return response
 
     return router
