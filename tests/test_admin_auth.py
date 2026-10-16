@@ -50,7 +50,7 @@ def test_admin_session_requires_authentication():
 def test_allowlisted_signed_session_can_read_admin_session():
     settings = configured_settings()
     client = client_for(settings)
-    client.cookies.set(SESSION_COOKIE, session_cookie(settings), secure=True)
+    client.cookies.set(SESSION_COOKIE, session_cookie(settings))
     response = client.get("/admin/session")
     assert response.status_code == 200
     assert response.json() == {
@@ -67,7 +67,6 @@ def test_signed_session_for_non_allowlisted_email_is_rejected():
     client.cookies.set(
         SESSION_COOKIE,
         session_cookie(settings, email="intruder@example.com"),
-        secure=True,
     )
     assert client.get("/admin/session").status_code == 401
 
