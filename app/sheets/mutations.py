@@ -1,10 +1,11 @@
-"""Allowlisted, audited, dry-run-first Google Sheets mutations."""
+""""Allowlisted, audited, dry-run-first Google Sheets mutations."""
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
-from typing import Any, Callable, Protocol
+from typing import Any, Protocol
 from uuid import uuid4
 
 from app.sheets.client import GoogleSheetsClient, GoogleSheetsConflictError
@@ -120,7 +121,9 @@ class SafeSheetMutationService:
         if policy is None:
             raise MutationRejected("Mutations are not configured for this worksheet")
         if policy.worksheet != worksheet:
-            raise MutationRejected("Mutation policy worksheet does not match the requested worksheet")
+            raise MutationRejected(
+                "Mutation policy worksheet does not match the requested worksheet"
+            )
         if not key_value:
             raise MutationRejected("Record ID must not be blank")
         if not changes:
