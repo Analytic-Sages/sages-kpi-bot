@@ -54,7 +54,9 @@ class RecordingAudit:
 
 
 def make_service(tmp_path, *, dry_run=True, writes_enabled=False, records=None, audit=None):
-    records = records or {"KPI Register": [{"KPI ID": "K001", "Target": "10", "KPI": "Qualified Leads"}]}
+    records = records or {
+        "KPI Register": [{"KPI ID": "K001", "Target": "10", "KPI": "Qualified Leads"}]
+    }
     sheets = FakeSheets(records, {"KPI Register": ["KPI ID", "KPI", "Target"]})
     audit = audit or SQLiteAuditLog(str(tmp_path / "audit.sqlite3"))
     policy = SheetMutationPolicy(
