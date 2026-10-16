@@ -254,7 +254,7 @@ def create_admin_auth_router(settings: Settings) -> APIRouter:
         elif not csrf or not secrets.compare_digest(csrf, session["csrf"]):
             return JSONResponse(status_code=403, content={"detail": "CSRF validation failed"})
         else:
-            response = JSONResponse(status_code=204, content=None)
+            response = Response(status_code=204)
         response.delete_cookie(
             SESSION_COOKIE,
             path="/",
