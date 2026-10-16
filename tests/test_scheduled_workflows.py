@@ -39,7 +39,7 @@ def sample_records():
 
 
 @pytest.mark.asyncio
-async def test_monday_broadcast_dry_run_does_not_send():
+async def test_monday_broadcast_dry_run_does_not_send(caplog):
     sheets = FakeSheets(sample_records())
     telegram = AsyncMock()
     settings = Settings(_env_file=None, dry_run=True, telegram_core_chat_id="-100123")
@@ -48,6 +48,9 @@ async def test_monday_broadcast_dry_run_does_not_send():
     await service.monday_kpi_broadcast()
 
     telegram.send_message.assert_not_awaited()
+    assert "scheduled_message_dry_run workflow=monday_kpi_broadcast" in caplog.text
+    assert "-100123" not in caplog.text
+    assert "Qualified Leads" not in caplog.text
 
 
 @pytest.mark.asyncio
