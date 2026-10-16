@@ -98,19 +98,27 @@ class GoogleSheetsClient:
             ) from exc
         return cls(spreadsheet)
 
-    async def _api_call(self, operation: Callable[[], T], *, context: str) -> T:
-        """Run blocking Google API calls off-loop and retry transient failures a few times."""
-        for attempt in range(1, MAX_API_ATTEMPTS + 1):
+    async def _api_call(
+        self,
+        operation: Callable[[], T],
+        *,
+        context: str,
+        max_attempts: int = MAX_API_ATTEMPTS,
+    ) -> T:
+        """Run blocking Google API calls off-loop, retrying only when the caller allows it."""
+        if max_attempts < 1:
+            raise ValueError("max_attempts must be at least one")
+        for attempt in range(1, max_attempts + 1):
             try:
                 return await asyncio.to_thread(operation)
             except Exception as exc:
-                if attempt == MAX_API_ATTEMPTS:
+                if attempt == max_attempts:
                     raise GoogleSheetsError(context) from exc
                 delay = 0.25 * (2 ** (attempt - 1))
                 logger.warning(
                     "google_sheets_retry attempt=%s/%s delay_seconds=%s context=%s error_type=%s",
                     attempt,
-                    MAX_API_ATTEMPTS,
+                    max_attempts,
                     delay,
                     context,
                     type(exc).__name__,
@@ -220,6 +228,7 @@ class GoogleSheetsClient:
                     updates, value_input_option=value_input_option
                 ),
                 context=f"Unable to update worksheet: {worksheet_name}",
+                max_attempts=1,
             )
         return row_number
 
@@ -243,5 +252,6 @@ class GoogleSheetsClient:
         await self._api_call(
             lambda: worksheet.append_row(row, value_input_option="USER_ENTERED"),
             context=f"Unable to append to worksheet: {worksheet_name}",
+            max_attempts=1,
         )
         return len(grid) + 1
