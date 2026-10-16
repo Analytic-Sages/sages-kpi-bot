@@ -61,6 +61,8 @@ def validate_nonempty_text(value: str) -> None:
 
 
 def validate_numeric(value: str) -> None:
+    if value.lstrip().startswith("="):
+        raise MutationRejected("Spreadsheet formulas are not accepted as user input")
     try:
         parsed = Decimal(value.replace(",", "").strip())
     except (InvalidOperation, AttributeError) as exc:
