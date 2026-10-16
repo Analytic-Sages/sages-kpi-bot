@@ -5,6 +5,7 @@ Google Sheets mutations. Session cookies are signed, HttpOnly, and time-limited.
 """
 from __future__ import annotations
 
+import asyncio
 import base64
 import hashlib
 import logging
@@ -15,7 +16,7 @@ from urllib.parse import urlencode
 
 import httpx
 from fastapi import APIRouter, Request
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse, Response
 from google.auth.transport.requests import Request as GoogleRequest
 from google.oauth2 import id_token
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
@@ -93,11 +94,18 @@ def create_admin_auth_router(settings: Settings) -> APIRouter:
     @router.get("/auth/login")
     async def login() -> RedirectResponse | JSONResponse:
         if not _configured(settings):
-            return JSONResponse(status_code=503, content={"detail": "Admin sign-in is not configured"})
+            return JSONResponse(
+                status_code=503,
+                content={"detail": "Admin sign-in is not configured"},
+            )
         state = secrets.token_urlsafe(32)
         nonce = secrets.token_urlsafe(32)
         verifier = secrets.token_urlsafe(64)
-        challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b"=").decode()
+        challenge = (
+            base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest())
+            .rstrip(b"=")
+            .decode()
+        )
         flow = _serializer(settings, "polaris-admin-oidc-flow-v1").dumps(
             {"state": state, "nonce": nonce, "verifier": verifier, "created": int(time.time())}
         )
@@ -156,7 +164,7 @@ def create_admin_auth_router(settings: Settings) -> APIRouter:
             raw_id_token = tokens.get("id_token")
             if not isinstance(raw_id_token, str):
                 raise ValueError("ID token missing")
-            claims = await __import__("asyncio").to_thread(
+            claims = await asyncio.to_thread(
                 id_token.verify_oauth2_token,
                 raw_id_token,
                 GoogleRequest(),
@@ -193,7 +201,13 @@ def create_admin_auth_router(settings: Settings) -> APIRouter:
             max_age=SESSION_MAX_AGE_SECONDS,
             path="/",
         )
-        response.delete_cookie(FLOW_COOKIE, path="/auth", secure=settings.admin_cookie_secure, httponly=True, samesite="lax")
+        response.delete_cookie(
+            FLOW_COOKIE,
+            path="/auth",
+            secure=settings.admin_cookie_secure,
+            httponly=True,
+            samesite="lax",
+        )
         return response
 
     @router.get("/admin/session")
@@ -202,7 +216,12 @@ def create_admin_auth_router(settings: Settings) -> APIRouter:
         if session is None:
             return JSONResponse(status_code=401, content={"detail": "Authentication required"})
         return JSONResponse(
-            content={"authenticated": True, "email": session["email"], "csrf_token": session["csrf"], "access": "read_only"}
+            content={
+                "authenticated": True,
+                "email": session["email"],
+                "csrf_token": session["csrf"],
+                "access": "read_only",
+            }
         )
 
     @router.post("/auth/logout")
@@ -210,12 +229,18 @@ def create_admin_auth_router(settings: Settings) -> APIRouter:
         session = require_admin(request)
         csrf = request.headers.get("X-CSRF-Token", "")
         if session is None:
-            response = JSONResponse(status_code=204, content=None)
+            response = Response(status_code=204)
         elif not csrf or not secrets.compare_digest(csrf, session["csrf"]):
             return JSONResponse(status_code=403, content={"detail": "CSRF validation failed"})
         else:
             response = JSONResponse(status_code=204, content=None)
-        response.delete_cookie(SESSION_COOKIE, path="/", secure=settings.admin_cookie_secure, httponly=True, samesite="lax")
+        response.delete_cookie(
+            SESSION_COOKIE,
+            path="/",
+            secure=settings.admin_cookie_secure,
+            httponly=True,
+            samesite="lax",
+        )
         response.delete_cookie(FLOW_COOKIE, path="/auth", secure=settings.admin_cookie_secure, httponly=True, samesite="lax")
         return response
 
