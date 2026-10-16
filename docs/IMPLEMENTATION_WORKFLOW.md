@@ -198,3 +198,35 @@ ENABLE_TEAM_WORKFLOWS=false
 - Operational source of truth: **Google Sheets**.
 - Existing FastAPI/Telegram system: **extend, do not replace**.
 - Initial write/scheduler/integration state: **disabled / dry-run until acceptance**.
+
+
+## Baseline report — 2026-10-17
+
+### Verified from repository source
+- Default branch is `main`; repository: `Analytic-Sages/sages-kpi-bot`.
+- Current application is a FastAPI service with a Telegram polling supervisor, optional team workflows, APScheduler workflows, analytics, protected read-only preflight, and a signed inbound webhook receiver.
+- Google Sheets access is header-driven. The existing client rejects missing/duplicate stable record keys and unknown headers, and writes targeted cell ranges rather than rewriting entire rows.
+- Existing team commands include `/status`, `/goal`, `/blocker`, and `/jd`; private identity checks reject team commands in group chats.
+- Existing settings include safe defaults for dry-run and independently gated team writes, scheduled workflows, analytics, and webhooks.
+- CI configuration in `.github/workflows/ci.yml` runs Ruff and pytest with coverage on pushes to `main`/feature branches and pull requests to `main`.
+- Existing tests include Sheets schema/client tests, team workflow tests, config tests, preflight tests, and row-integrity tests.
+- Existing runbook is `docs/SAFE_STAGING_ROLLOUT.md`; it remains authoritative for existing workflow activation gates.
+
+### Gaps to address before any admin write endpoint
+- The only admin HTTP endpoint identified in the entry point is the protected read-only `/admin/preflight`; an admin sign-in/session and role authorization system has not yet been identified.
+- `GoogleSheetsClient.update_record` validates headers and unique keys, but it does not by itself enforce a business-specific allowlist of editable fields, stale-snapshot protection, audit logging, or read-after-write verification.
+- The Sheets client's generic retry wrapper is used around writes as well as reads. The write path needs explicit handling for timeouts/uncertain outcomes before being exposed to a UI; blind retries must not be treated as verified success.
+- The Telegram command handler logs sender/chat IDs. Review and redact these identifiers in logs before broadening administrative access or adding further integrations.
+- No frontend package or admin dashboard was verified in the files inspected so far.
+- The actual Google Sheets workbook headers/formula ownership must be confirmed before finalizing editable-field allowlists.
+
+### Stage 0 status
+**In progress — not passed.** Repository architecture and several critical files have been inspected. The following remain open:
+- [ ] Record the exact current `main` commit SHA and CI status.
+- [ ] Inspect the remainder of the Sheets client, reminder receipt persistence, scheduler, and relevant tests.
+- [ ] Confirm the admin authentication/session approach and approved admin identity source.
+- [ ] Verify the current Render deployment/instance/persistent-storage setup.
+- [ ] Re-run the protected read-only preflight after the Operations Manager finishes workbook edits.
+- [ ] Capture current deployed health and preflight results without including secrets or personal identifiers.
+
+Do not begin Stage 1 production-facing mutation work until the open baseline items are resolved or explicitly documented as blocked, with an agreed safe test strategy.
