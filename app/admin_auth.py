@@ -54,9 +54,7 @@ def _admin_emails(settings: Settings) -> set[str]:
     return {value.strip().casefold() for value in settings.admin_emails.split(",") if value.strip()}
 
 
-def _safe_cookie(
-    response: RedirectResponse | JSONResponse, settings: Settings, **kwargs: Any
-) -> None:
+def _safe_cookie(response: Response, settings: Settings, **kwargs: Any) -> None:
     response.set_cookie(
         **kwargs,
         secure=settings.admin_cookie_secure,
@@ -94,7 +92,7 @@ def create_admin_auth_router(settings: Settings) -> APIRouter:
     router = APIRouter(tags=["admin-auth"])
 
     @router.get("/auth/login")
-    async def login() -> RedirectResponse | JSONResponse:
+    async def login() -> Response:
         if not _configured(settings):
             return JSONResponse(
                 status_code=503,
@@ -246,7 +244,7 @@ def create_admin_auth_router(settings: Settings) -> APIRouter:
         )
 
     @router.post("/auth/logout")
-    async def logout(request: Request) -> JSONResponse:
+    async def logout(request: Request) -> Response:
         session = require_admin(request)
         csrf = request.headers.get("X-CSRF-Token", "")
         if session is None:
