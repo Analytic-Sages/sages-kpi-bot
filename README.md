@@ -42,6 +42,10 @@ Render's documented managed OIDC integrations currently list AWS, Anthropic, and
 
 Use a dedicated account rather than a personal employee account where practical. The refresh token is still a sensitive credential: never commit it, put it in logs, or paste it into chat. Rotate/re-authorize it if revoked. If Google requires OAuth app verification for the chosen audience/scope, complete that process before relying on the integration in production.
 
+## Admin sign-in
+
+See [Google admin authentication setup](docs/ADMIN_AUTH.md) for the $0-cost Google OIDC sign-in design, Render environment variables, approved-email allowlist, cookie/session behavior, and acceptance gates. Authentication is separate from spreadsheet-write authorization; all operational side-effect flags remain disabled until their gates pass.
+
 ## Health checks
 
 - `GET /` — service identity.
