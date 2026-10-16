@@ -4,7 +4,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
-from typing import Any, Protocol
+from typing import Any, Callable, Protocol
 from uuid import uuid4
 
 from app.sheets.client import GoogleSheetsClient, GoogleSheetsConflictError
@@ -29,7 +29,7 @@ class SheetMutationPolicy:
     worksheet: str
     key_header: str
     editable_fields: frozenset[str]
-    validators: dict[str, Any] = field(default_factory=dict)
+    validators: dict[str, Callable[[str], None]] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if not self.worksheet.strip() or not self.key_header.strip():
@@ -119,6 +119,8 @@ class SafeSheetMutationService:
             raise MutationRejected("A verified actor identity is required")
         if policy is None:
             raise MutationRejected("Mutations are not configured for this worksheet")
+        if policy.worksheet != worksheet:
+            raise MutationRejected("Mutation policy worksheet does not match the requested worksheet")
         if not key_value:
             raise MutationRejected("Record ID must not be blank")
         if not changes:
@@ -279,15 +281,20 @@ class SafeSheetMutationService:
                     "The written values could not be verified. Do not retry until reconciled."
                 )
 
-            await self._audit(
-                request=request,
-                actor=actor,
-                policy=policy,
-                record_id=key_value,
-                outcome="verified",
-                before=before,
-                after=normalized_changes,
-            )
+            try:
+                await self._audit(
+                    request=request,
+                    actor=actor,
+                    policy=policy,
+                    record_id=key_value,
+                    outcome="verified",
+                    before=before,
+                    after=normalized_changes,
+                )
+            except Exception as exc:
+                raise MutationOutcomeUncertain(
+                    "Values were verified, but the final audit event could not be persisted."
+                ) from exc
             return MutationResult("applied", worksheet, key_value, row_number, change_set, request)
 
     async def _audit(
