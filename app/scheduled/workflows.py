@@ -124,12 +124,9 @@ class ScheduledWorkflowService:
             )
             return
         if self.settings.dry_run:
-            logger.info(
-                "scheduled_message_dry_run workflow=%s chat_id=%s preview=%r",
-                workflow_name,
-                chat_id,
-                message[:180],
-            )
+            # Keep dry-run logs operationally useful without exposing private chat IDs
+            # or snippets of potentially sensitive team messages.
+            logger.info("scheduled_message_dry_run workflow=%s", workflow_name)
             return
         try:
             await self.telegram.send_message(chat_id, message)
