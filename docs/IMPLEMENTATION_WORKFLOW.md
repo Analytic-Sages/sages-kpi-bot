@@ -216,7 +216,7 @@ ENABLE_TEAM_WORKFLOWS=false
 - The only admin HTTP endpoint identified in the entry point is the protected read-only `/admin/preflight`; an admin sign-in/session and role authorization system has not yet been identified.
 - `GoogleSheetsClient.update_record` validates headers and unique keys, but it does not by itself enforce a business-specific allowlist of editable fields, stale-snapshot protection, audit logging, or read-after-write verification.
 - The Sheets client's generic retry wrapper is used around writes as well as reads. The write path needs explicit handling for timeouts/uncertain outcomes before being exposed to a UI; blind retries must not be treated as verified success.
-- The Telegram command handler logs sender/chat IDs. Review and redact these identifiers in logs before broadening administrative access or adding further integrations.
+- Telegram command and delivery logs have been updated to omit chat/sender IDs in merged PR #24. Continue avoiding personal identifiers in new logs.
 - No frontend package or admin dashboard was verified in the files inspected so far.
 - The actual Google Sheets workbook headers/formula ownership must be confirmed before finalizing editable-field allowlists.
 
@@ -234,11 +234,12 @@ Do not begin Stage 1 production-facing mutation work until the open baseline ite
 
 ### Runtime verification update
 
-- Latest `main` commit observed from GitHub: `940d5c8cd846c03b6c19326e7d1520fa2fd2cad4` (merge of PR #21, blocker task references).
-- GitHub combined status returned no status contexts for that commit or the documentation/fix PR heads at the time of inspection. Treat this as **unknown**, not green.
-- The workflow-run lookup returned no runs for the inspected PR heads. CI must be rechecked in GitHub before any merge.
+- Latest `main` commit observed from GitHub: `6bebdf1a8d8db02e78a599016d79c362d3c7fdba`, merging the Telegram log-redaction fix in PR #24.
+- PR #23 (implementation workflow) and PR #24 (Telegram log redaction) are both merged.
+- The status lookup returned no status contexts for the latest merge commit, so current CI status remains **unknown**, not green.
+- The first CI run for the safe-mutation PR failed Ruff on three overlong lines. Those lines were corrected; a passing CI run for the corrected head has not yet been observed.
 - The current verification channel could not retrieve the live Render health endpoints. No current production health claim is made.
-- The last known protected preflight result from the prior staging test was blocked by incomplete KPI configuration/owner references. The Operations Manager was still editing the workbook; this must be rerun after those edits are complete.
-- A separate Stage 0 privacy-hygiene PR was opened to remove Telegram chat/sender IDs from application logs: [PR #24](https://github.com/Analytic-Sages/sages-kpi-bot/pull/24). It is unmerged and CI has not been verified.
+- The last known protected preflight result from the prior staging test was blocked by incomplete KPI configuration/owner references. Rerun after the Operations Manager confirms workbook edits are complete.
+- Stage 1 implementation is in draft PR #25. It adds a reusable service and tests but is not wired into FastAPI, has no admin API, and has no production mutation policy for the task tracker.
 
-**Current gate: Stage 0 remains open.** Do not treat the draft plan or privacy-hygiene PR as deployed or production-approved.
+**Current gate: Stage 0 runtime/data checks remain open, and Stage 1 is under review.** Do not treat the implementation PR as deployed or production-approved.

@@ -183,3 +183,72 @@ def test_from_settings_loads_external_account_or_service_account_file(monkeypatc
     )
     authorized_client.open_by_key.assert_called_once_with("sheet-id")
     assert client._spreadsheet is spreadsheet
+
+
+@pytest.mark.asyncio
+async def test_update_record_rejects_stale_expected_value_before_writing():
+    client, worksheet = make_client([
+        ["Task ID", "Status"],
+        ["T001", "In Progress"],
+    ])
+    with pytest.raises(GoogleSheetsError, match="changed since it was loaded"):
+        await client.update_record(
+            "Master Task Tracker",
+            key_header="Task ID",
+            key_value="T001",
+            values={"Status": "Completed"},
+            expected_values={"Status": "Not Started"},
+            value_input_option="RAW",
+        )
+    worksheet.batch_update.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_update_record_supports_raw_values_with_expected_snapshot():
+    client, worksheet = make_client([
+        ["Task ID", "Status"],
+        ["T001", "In Progress"],
+    ])
+    row = await client.update_record(
+        "Master Task Tracker",
+        key_header="Task ID",
+        key_value="T001",
+        values={"Status": "Completed"},
+        expected_values={"Status": "In Progress"},
+        value_input_option="RAW",
+    )
+    assert row == 2
+    worksheet.batch_update.assert_called_once_with(
+        [{"range": "B2", "values": [["Completed"]]}],
+        value_input_option="RAW",
+    )
+
+
+
+@pytest.mark.asyncio
+async def test_update_record_does_not_retry_uncertain_write_failure():
+    client, worksheet = make_client([
+        ["Task ID", "Status"],
+        ["T001", "In Progress"],
+    ])
+    worksheet.batch_update.side_effect = RuntimeError("timeout after request")
+    with pytest.raises(GoogleSheetsError, match="Unable to update worksheet"):
+        await client.update_record(
+            "Master Task Tracker",
+            key_header="Task ID",
+            key_value="T001",
+            values={"Status": "Completed"},
+        )
+    assert worksheet.batch_update.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_append_record_does_not_retry_uncertain_write_failure():
+    client, worksheet = make_client([["Task ID", "Task Name"]])
+    worksheet.append_row.side_effect = RuntimeError("timeout after request")
+    with pytest.raises(GoogleSheetsError, match="Unable to append to worksheet"):
+        await client.append_record(
+            "Master Task Tracker",
+            {"Task ID": "T002", "Task Name": "Write brief"},
+        )
+    assert worksheet.append_row.call_count == 1

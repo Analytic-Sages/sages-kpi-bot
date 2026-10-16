@@ -25,6 +25,10 @@ class GoogleSheetsError(RuntimeError):
     """Raised for Google Sheets access or mutation failures."""
 
 
+class GoogleSheetsConflictError(GoogleSheetsError):
+    """Raised when a record no longer matches the expected mutation snapshot."""
+
+
 def google_auth_mode(settings: Settings) -> str:
     """Return the configured Google auth mode or raise a safe configuration error.
 
@@ -94,19 +98,27 @@ class GoogleSheetsClient:
             ) from exc
         return cls(spreadsheet)
 
-    async def _api_call(self, operation: Callable[[], T], *, context: str) -> T:
-        """Run blocking Google API calls off-loop and retry transient failures a few times."""
-        for attempt in range(1, MAX_API_ATTEMPTS + 1):
+    async def _api_call(
+        self,
+        operation: Callable[[], T],
+        *,
+        context: str,
+        max_attempts: int = MAX_API_ATTEMPTS,
+    ) -> T:
+        """Run blocking Google API calls off-loop, retrying only when the caller allows it."""
+        if max_attempts < 1:
+            raise ValueError("max_attempts must be at least one")
+        for attempt in range(1, max_attempts + 1):
             try:
                 return await asyncio.to_thread(operation)
             except Exception as exc:
-                if attempt == MAX_API_ATTEMPTS:
+                if attempt == max_attempts:
                     raise GoogleSheetsError(context) from exc
                 delay = 0.25 * (2 ** (attempt - 1))
                 logger.warning(
                     "google_sheets_retry attempt=%s/%s delay_seconds=%s context=%s error_type=%s",
                     attempt,
-                    MAX_API_ATTEMPTS,
+                    max_attempts,
                     delay,
                     context,
                     type(exc).__name__,
@@ -158,8 +170,10 @@ class GoogleSheetsClient:
         key_header: str,
         key_value: str,
         values: dict[str, Any],
+        expected_values: dict[str, Any] | None = None,
+        value_input_option: str = "USER_ENTERED",
     ) -> int:
-        """Update one unique record and return its row number; reject ambiguous keys."""
+        """Update one unique record and return its row number; reject ambiguous/stale keys."""
         worksheet = self._worksheet(worksheet_name)
         grid = await self._api_call(
             worksheet.get_all_values, context=f"Unable to read worksheet: {worksheet_name}"
@@ -187,6 +201,20 @@ class GoogleSheetsClient:
                 f"found {len(matches)}"
             )
         row_number = matches[0]
+        if expected_values:
+            row = grid[row_number - 1]
+            for header, expected in expected_values.items():
+                if header not in headers:
+                    raise GoogleSheetsError(
+                        f"Expected-value header {header!r} missing from {worksheet_name}"
+                    )
+                column_index = headers.index(header)
+                actual = str(row[column_index]).strip() if column_index < len(row) else ""
+                expected_text = "" if expected is None else str(expected).strip()
+                if actual != expected_text:
+                    raise GoogleSheetsConflictError(
+                        f"Record changed since it was loaded: {header!r} no longer matches"
+                    )
         updates = [
             {
                 "range": gspread.utils.rowcol_to_a1(row_number, headers.index(header) + 1),
@@ -196,8 +224,11 @@ class GoogleSheetsClient:
         ]
         if updates:
             await self._api_call(
-                lambda: worksheet.batch_update(updates, value_input_option="USER_ENTERED"),
+                lambda: worksheet.batch_update(
+                    updates, value_input_option=value_input_option
+                ),
                 context=f"Unable to update worksheet: {worksheet_name}",
+                max_attempts=1,
             )
         return row_number
 
@@ -221,5 +252,6 @@ class GoogleSheetsClient:
         await self._api_call(
             lambda: worksheet.append_row(row, value_input_option="USER_ENTERED"),
             context=f"Unable to append to worksheet: {worksheet_name}",
+            max_attempts=1,
         )
         return len(grid) + 1
