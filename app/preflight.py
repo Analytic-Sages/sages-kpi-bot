@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from app.config import Settings, get_settings
+from app.change_requests.workbook_audit import change_policy_findings
 from app.sheets.client import GoogleSheetsClient, GoogleSheetsError, google_auth_mode
 
 CORE_SHEETS: dict[str, set[str]] = {
@@ -232,6 +233,21 @@ async def sheet_findings(client: GoogleSheetsClient) -> list[Finding]:
             findings.append(
                 Finding("PASS", f"{worksheet_name} / accountability", "Safety headers are present.")
             )
+    try:
+        policy_findings = await change_policy_findings(client)
+    except Exception:
+        findings.append(
+            Finding(
+                "BLOCKER",
+                "Mutation policy audit",
+                "Could not complete the read-only formula-ownership audit.",
+            )
+        )
+    else:
+        findings.extend(
+            Finding(item.severity, item.component, item.message)
+            for item in policy_findings
+        )
     return findings
 
 
