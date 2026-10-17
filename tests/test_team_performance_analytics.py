@@ -27,7 +27,7 @@ def test_team_and_member_metrics_and_followup_queue():
     kpi_register = [
         {
             "KPI ID": "k1", "KPI": "Reports", "Owner Person ID": "p1",
-            "Target": "10", "Team": "Research",
+            "Target": "10", "Team": "Research", "Active?": "Yes",
         },
     ]
     kpi_log = [
@@ -55,7 +55,7 @@ def test_missing_and_ambiguous_records_are_counted_not_hidden():
     result = build_team_performance(
         [{"Full Name": "No ID", "Team": "Ops"}],
         [{"Task Name": "No ID or owner", "Status": "Open", "Due Date": "not-a-date"}],
-        [{"KPI": "No key"}],
+        [{"KPI": "No key", "Active?": "Yes"}],
         [{"KPI ID": "unknown", "Actual": "3"}],
         today=date(2026, 10, 17), start_date=date(2026, 10, 1), end_date=date(2026, 10, 31),
     )
