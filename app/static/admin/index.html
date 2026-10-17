@@ -52,6 +52,75 @@
           <div id="summary-grid" class="summary-grid" aria-live="polite"></div>
         </section>
 
+        <section aria-labelledby="performance-heading" class="section-block analytics-section">
+          <div class="section-heading">
+            <div><p class="eyebrow">TEAM ACCOUNTABILITY</p><h2 id="performance-heading">Team performance analytics</h2><p class="muted">Live read-only aggregates from the operational workbook.</p></div>
+            <span id="analytics-source" class="source-pill">Waiting for data</span>
+          </div>
+          <form id="analytics-filter-form" class="filter-bar analytics-filters">
+            <label>From
+              <input id="analytics-start" name="start_date" type="date" />
+            </label>
+            <label>To
+              <input id="analytics-end" name="end_date" type="date" />
+            </label>
+            <label>Team
+              <select id="analytics-team" name="team"><option value="">All teams</option></select>
+            </label>
+            <label>Person
+              <select id="analytics-person" name="person"><option value="">All members</option></select>
+            </label>
+            <label>Status
+              <select id="analytics-status" name="status">
+                <option value="">All task statuses</option>
+                <option value="completed">Completed</option>
+                <option value="in_progress">In progress</option>
+                <option value="open">Open / pending</option>
+                <option value="blocked">Blocked</option>
+              </select>
+            </label>
+            <button class="button button-primary" type="submit">Apply filters</button>
+            <button id="analytics-reset" class="button button-secondary" type="button">Reset</button>
+          </form>
+          <div id="analytics-error" class="notice notice-error" role="alert" hidden></div>
+          <div id="analytics-loading" class="notice" role="status" hidden>Loading live team, task and KPI data…</div>
+          <div id="analytics-content" hidden>
+            <p id="analytics-period-note" class="muted small analytics-period-note"></p>
+            <div id="performance-summary" class="summary-grid analytics-summary"></div>
+            <div class="analytics-grid">
+              <article class="analytics-panel">
+                <div class="panel-heading"><div><h3>Team comparison</h3><p class="muted small">Completion rate and workload</p></div></div>
+                <div id="team-chart" class="bar-chart" aria-label="Team task completion chart"></div>
+              </article>
+              <article class="analytics-panel">
+                <div class="panel-heading"><div><h3>Six-week activity</h3><p class="muted small">Tasks with a due date or last-update date in each week</p></div></div>
+                <div id="trend-chart" class="trend-chart" aria-label="Six week task activity chart"></div>
+              </article>
+            </div>
+            <section class="analytics-subsection" aria-labelledby="teams-table-heading">
+              <div class="section-heading"><div><h3 id="teams-table-heading">Team scorecard</h3><p class="muted small">Compare workload, delivery and follow-up volume.</p></div></div>
+              <div class="table-wrap"><table><thead><tr><th>Team</th><th>Members</th><th>Assigned</th><th>Completed</th><th>In progress</th><th>Open</th><th>Overdue</th><th>Blocked</th><th>Completion</th></tr></thead><tbody id="teams-body"></tbody></table></div>
+            </section>
+            <section class="analytics-subsection" aria-labelledby="members-table-heading">
+              <div class="section-heading"><div><h3 id="members-table-heading">Individual performance</h3><p class="muted small">Sorted to surface overdue and blocked work first; workload matters when interpreting results.</p></div></div>
+              <div class="table-wrap"><table><thead><tr><th>Member</th><th>Team</th><th>Assigned</th><th>Completed</th><th>In progress</th><th>Open</th><th>Overdue</th><th>Blocked</th><th>Completion</th><th>Follow-up signals</th></tr></thead><tbody id="members-body"></tbody></table></div>
+            </section>
+            <section class="analytics-subsection" aria-labelledby="followup-heading">
+              <div class="section-heading"><div><h3 id="followup-heading">Follow-up queue</h3><p class="muted small">Overdue and blocked tasks that may need a manager check-in.</p></div></div>
+              <div class="table-wrap"><table><thead><tr><th>Task</th><th>Owner</th><th>Team</th><th>Status</th><th>Due date</th><th>Reason</th></tr></thead><tbody id="followup-body"></tbody></table></div>
+            </section>
+            <section class="analytics-subsection" aria-labelledby="kpi-heading">
+              <div class="section-heading"><div><h3 id="kpi-heading">KPI target vs actual</h3><p class="muted small">Attainment is calculated only when target and actual values are numeric.</p></div></div>
+              <div class="table-wrap"><table><thead><tr><th>KPI</th><th>Owner</th><th>Team</th><th>Week</th><th>Target</th><th>Actual</th><th>Attainment</th><th>Signal</th></tr></thead><tbody id="kpis-body"></tbody></table></div>
+            </section>
+            <section class="analytics-subsection quality-panel" aria-labelledby="quality-heading">
+              <div class="section-heading"><div><h3 id="quality-heading">Data quality & interpretation</h3><p class="muted small">Check these before using the dashboard for performance decisions.</p></div></div>
+              <div id="quality-counts" class="quality-counts"></div>
+              <ul id="quality-notes" class="quality-notes"></ul>
+            </section>
+          </div>
+        </section>
+
         <section aria-labelledby="safety-heading" class="section-block">
           <div class="section-heading">
             <div><p class="eyebrow">GUARDRAILS</p><h2 id="safety-heading">Safety controls</h2></div>

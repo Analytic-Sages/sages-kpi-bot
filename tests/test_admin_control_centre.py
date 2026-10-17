@@ -8,6 +8,7 @@ def test_admin_control_centre_is_served_with_security_headers():
     assert response.status_code == 200
     assert "Polaris" in response.text
     assert "Continue with Google" in response.text
+    assert "Team performance analytics" in response.text
     assert response.headers["content-security-policy"].find("default-src 'self'") >= 0
     assert response.headers["x-content-type-options"] == "nosniff"
     assert response.headers["x-frame-options"] == "DENY"
@@ -22,6 +23,7 @@ def test_admin_control_centre_assets_are_same_origin_and_cache_controlled():
     assert stylesheet.status_code == 200
     assert '"/api/v1/admin/overview"' in script.text
     assert '"/api/v1/admin/audit-events?"' in script.text
+    assert '"/api/v1/admin/team-performance?"' in script.text
     assert "localStorage" not in script.text
     assert script.headers["cache-control"] == "no-store"
     assert stylesheet.headers["cache-control"] == "no-store"

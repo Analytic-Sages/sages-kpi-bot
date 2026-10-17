@@ -68,3 +68,18 @@ No task/KPI list/detail endpoints are published yet. The schema is not approved 
 - [ ] Live Render API check is completed after deployment without sharing session/CSRF tokens.
 - [ ] Persistent storage and single-instance assumptions for SQLite are confirmed.
 - [ ] Task/KPI endpoints remain deferred until workbook schema review is approved.
+
+
+## Team performance analytics
+
+`GET /api/v1/admin/team-performance` requires the same authenticated admin session. Optional query parameters:
+
+- `start_date=YYYY-MM-DD`
+- `end_date=YYYY-MM-DD`
+- `team=<exact team name>`
+- `person=<person ID or exact name>`
+- `status=completed|in_progress|open|blocked`
+
+The endpoint reads `People Directory`, `Master Task Tracker`, `KPI Register`, and `Weekly KPI Log` and returns summary metrics, team/member scorecards, overdue/blocked/stale follow-ups, KPI observations, a six-week activity series, and data-quality counts. It is read-only and does not depend on `ENABLE_ANALYTICS`, which remains the separate flag for the existing growth analytics integration. Missing Google Sheets configuration returns 503; source connection/schema failures are sanitized and return 503. Invalid date ranges and filters return 422.
+
+See `docs/TEAM_PERFORMANCE_ANALYTICS.md` for header aliases, calculation semantics, and limitations. Treat the dashboard as operational visibility, not a formal performance rating, until the Operations Manager verifies the workbook contract and representative counts.
