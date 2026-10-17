@@ -7,8 +7,8 @@ from __future__ import annotations
 
 from collections import Counter, defaultdict
 from datetime import UTC, date, datetime, timedelta
-import re
 from typing import Any
+import re
 
 
 PEOPLE_SHEET = "People Directory"
