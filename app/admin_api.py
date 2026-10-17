@@ -110,8 +110,8 @@ def create_admin_api_router() -> APIRouter:
     @router.get("/team-performance")
     async def team_performance(
         request: Request,
-        start_date: date | None = Query(default=None),
-        end_date: date | None = Query(default=None),
+        start_date: date | None = None,
+        end_date: date | None = None,
         team: str | None = Query(default=None, min_length=1, max_length=128),
         person: str | None = Query(default=None, min_length=1, max_length=256),
         status: str | None = Query(
