@@ -184,6 +184,7 @@
           </form>
           <div id="tasks-error" class="notice notice-error" role="alert" hidden></div>
           <div class="table-wrap"><table><thead><tr><th>Task</th><th>Owner</th><th>Team</th><th>Status</th><th>Due date</th><th>Follow-up</th></tr></thead><tbody id="tasks-body"><tr><td colspan="6" class="empty-cell">Loading tasks…</td></tr></tbody></table></div>
+          <div class="pagination"><span id="tasks-page-count" class="muted small">Loading records…</span><div class="pagination-actions"><button id="tasks-previous" class="button button-quiet" type="button" disabled>Previous</button><button id="tasks-next" class="button button-quiet" type="button" disabled>Next</button></div></div>
         </section>
 
         <section class="section-block" aria-labelledby="kpi-records-heading">
@@ -204,6 +205,7 @@
           </form>
           <div id="kpis-error" class="notice notice-error" role="alert" hidden></div>
           <div class="table-wrap"><table><thead><tr><th>KPI</th><th>Owner</th><th>Team</th><th>Target</th><th>Latest actual</th><th>Week</th><th>State</th></tr></thead><tbody id="kpis-body"><tr><td colspan="7" class="empty-cell">Loading KPIs…</td></tr></tbody></table></div>
+          <div class="pagination"><span id="kpis-page-count" class="muted small">Loading records…</span><div class="pagination-actions"><button id="kpis-previous" class="button button-quiet" type="button" disabled>Previous</button><button id="kpis-next" class="button button-quiet" type="button" disabled>Next</button></div></div>
           <p class="muted small">Task and KPI editing is not exposed. Editable fields and status transitions must be explicitly approved and validated before a write endpoint is enabled.</p>
         </section>
       </section>
