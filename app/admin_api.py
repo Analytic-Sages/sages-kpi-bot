@@ -8,7 +8,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import sqlite3
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -114,7 +114,7 @@ def create_admin_api_router() -> APIRouter:
         end_date: date | None = Query(default=None),
         team: str | None = Query(default=None, min_length=1, max_length=128),
         person: str | None = Query(default=None, min_length=1, max_length=256),
-        status: str | None = Query(default=None, min_length=1, max_length=32),
+        status: str | None = Query(default=None, min_length=1, max_length=32, pattern="^(completed|in_progress|open|blocked)$"),
     ) -> JSONResponse:
         """Return read-only team/task/KPI aggregates from the live workbook."""
         session = require_admin(request)
