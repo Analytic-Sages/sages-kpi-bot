@@ -2,6 +2,8 @@
 
 Status: requirements captured; workbook header and protected-range verification is still required before enabling any write policy.
 
+> Implementation note (dry-run foundation): `app/change_requests/policy.py` now provides typed `ChangeProposal` / `PolicyContext` models and a pure `validate_proposal` validator. It uses the proposed names below as a fail-closed contract, fingerprints the complete header-ordered row snapshot, rejects stale expected values and formula-owned fields, and validates the configured field/tier and task/KPI value rules. It performs no Sheets I/O, does not configure a live mutation policy, and does not establish that the live workbook matches these proposed headers. Do not treat a successful validation as permission to write.
+
 Google Sheets remains the operational source of truth. This document translates the approved operational specification into implementation and acceptance requirements. Names below are proposed workbook header names supplied by the operator; they are not a claim that the current live workbook has been inspected. The implementation must read row 1 and compare it with an explicitly approved schema before any write.
 
 ## Non-negotiable safety gates
