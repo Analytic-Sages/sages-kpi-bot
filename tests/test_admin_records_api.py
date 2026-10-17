@@ -126,3 +126,27 @@ def test_missing_sheet_configuration_returns_sanitized_503():
     response = client_for(configured_settings(google_sheet_id=None)).get("/api/v1/admin/tasks")
     assert response.status_code == 503
     assert "credentials" not in response.text
+
+
+
+def test_duplicate_task_ids_are_hidden_and_reported(monkeypatch):
+    from app import admin_records_api
+
+    class DuplicateSheets(FakeSheets):
+        async def read_records(self, worksheet):
+            rows = list(self.records[worksheet])
+            if worksheet == "Master Task Tracker":
+                rows.append(dict(rows[0]))
+            return rows
+
+    monkeypatch.setattr(
+        admin_records_api.GoogleSheetsClient,
+        "from_settings",
+        staticmethod(lambda settings: DuplicateSheets()),
+    )
+    response = client_for().get("/api/v1/admin/tasks")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total"] == 2
+    assert body["data_quality"]["duplicate_task_ids"] == 1
+    assert all(item["id"] != "t1" for item in body["items"])
