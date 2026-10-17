@@ -73,7 +73,6 @@ def _parse_date(value: str) -> date | None:
     return None
 
 
-
 def _first_value(row: dict[str, str], headers: tuple[str, ...]) -> str:
     for header in headers:
         value = row.get(header, "").strip()
