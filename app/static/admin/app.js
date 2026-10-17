@@ -281,12 +281,12 @@
     for (const item of teams) {
       const line = element("div", "bar-row");
       const label = element("div", "bar-label", item.team);
-      const track = element("div", "bar-track");
-      const fill = element("div", "bar-fill");
-      fill.style.width = Math.max(0, Math.min(100, item.completion_rate || 0)) + "%";
-      track.append(fill);
+      const progress = element("progress", "bar-progress");
+      progress.max = 100;
+      progress.value = Math.max(0, Math.min(100, item.completion_rate || 0));
+      progress.setAttribute("aria-label", item.team + " completion rate " + rate(item.completion_rate));
       const value = element("div", "bar-value", rate(item.completion_rate) + " · " + item.task_count + " tasks");
-      line.append(label, track, value);
+      line.append(label, progress, value);
       chart.append(line);
     }
   }
@@ -300,16 +300,15 @@
     }
     const max = Math.max(1, ...trend.map((item) => item.tasks_with_dates));
     for (const item of trend) {
-      const column = element("div", "trend-column");
-      const value = element("span", "trend-value", String(item.tasks_with_dates));
-      const barWrap = element("div", "trend-bar-wrap");
-      const bar = element("div", "trend-bar");
-      bar.style.height = Math.max(3, item.tasks_with_dates / max * 100) + "%";
-      barWrap.append(bar);
-      const label = element("span", "trend-label", item.week_start.slice(5));
-      const caption = element("span", "trend-caption", item.completed + " completed");
-      column.append(value, barWrap, label, caption);
-      chart.append(column);
+      const line = element("div", "trend-row");
+      const label = element("span", "trend-label", item.week_start);
+      const progress = element("progress", "trend-progress");
+      progress.max = max;
+      progress.value = item.tasks_with_dates;
+      progress.setAttribute("aria-label", item.tasks_with_dates + " tasks, " + item.completed + " completed");
+      const caption = element("span", "trend-caption", item.tasks_with_dates + " tasks · " + item.completed + " completed");
+      line.append(label, progress, caption);
+      chart.append(line);
     }
   }
 
