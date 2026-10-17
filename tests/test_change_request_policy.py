@@ -242,3 +242,11 @@ def test_wrong_worksheet_and_tier_fail_closed():
     wrong_tier = task_proposal(context, {"Deadline": "2026-11-02"}, tier=1)
     with pytest.raises(ChangePolicyError, match="require Tier 2"):
         validate_proposal(wrong_tier, context)
+
+
+
+def test_row_fingerprint_changes_when_header_order_changes():
+    row = {"Task ID": "T-1", "Status": "In Progress"}
+    assert fingerprint_row(("Task ID", "Status"), row) != fingerprint_row(
+        ("Status", "Task ID"), row
+    )
