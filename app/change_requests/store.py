@@ -6,13 +6,13 @@ Google Sheets writes; callers must apply those checks independently.
 from __future__ import annotations
 
 import asyncio
-from contextlib import contextmanager
 import json
 import sqlite3
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from collections.abc import Iterator
 from typing import Any, Literal
 from uuid import uuid4
 
@@ -170,10 +170,14 @@ class SQLiteChangeRequestStore:
                 ).fetchone()
                 if existing is not None:
                     if existing["actor_id"] != actor_id:
-                        raise ChangeRequestForbidden("Source message is already bound to another actor")
+                        raise ChangeRequestForbidden(
+                            "Source message is already bound to another actor"
+                        )
                     existing_request = self._from_row(existing)
                     if existing_request.payload != payload or existing_request.tier != tier:
-                        raise ChangeRequestError("Source message is already bound to different request data")
+                        raise ChangeRequestError(
+                            "Source message is already bound to different request data"
+                        )
                     return existing_request
             existing_id = connection.execute(
                 "SELECT * FROM change_requests WHERE request_id = ?", (request_id,)
@@ -187,7 +191,9 @@ class SQLiteChangeRequestStore:
                     or existing_request.tier != tier
                     or existing_request.allowed_approver_ids != allowed_approver_ids
                 ):
-                    raise ChangeRequestError("Request ID is already bound to different request data")
+                    raise ChangeRequestError(
+                        "Request ID is already bound to different request data"
+                    )
                 return existing_request
             connection.execute(
                 """INSERT INTO change_requests (
@@ -195,7 +201,9 @@ class SQLiteChangeRequestStore:
                     allowed_approver_ids_json, source_chat_id, source_message_id,
                     reason, created_at, updated_at, confirmation_expires_at,
                     approval_expires_at, confirmed_at, approver_id, applied_at, outcome_code
-                ) VALUES (?, ?, ?, 'DRAFT', ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, NULL, NULL, NULL)""",
+                ) VALUES (
+                    ?, ?, ?, 'DRAFT', ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, NULL, NULL, NULL
+                )""",
                 (
                     request_id,
                     actor_id,
@@ -404,7 +412,10 @@ class SQLiteChangeRequestStore:
                     raise ChangeRequestForbidden("Only the requester can confirm this request")
                 if status != "AWAITING_CONFIRMATION":
                     raise ChangeRequestInvalidTransition("Request is not awaiting confirmation")
-                if request.confirmation_expires_at is None or now >= request.confirmation_expires_at:
+                if (
+                    request.confirmation_expires_at is None
+                    or now >= request.confirmation_expires_at
+                ):
                     updates.update(status="EXPIRED", outcome_code="CONFIRMATION_EXPIRED")
                 elif request.tier == 1:
                     updates.update(status="APPROVED", confirmed_at=now.isoformat())
@@ -418,7 +429,9 @@ class SQLiteChangeRequestStore:
                 if status != "AWAITING_APPROVAL":
                     raise ChangeRequestInvalidTransition("Request is not awaiting approval")
                 if actor_id == request.actor_id:
-                    raise ChangeRequestForbidden("Requester cannot approve or reject their own request")
+                    raise ChangeRequestForbidden(
+                        "Requester cannot approve or reject their own request"
+                    )
                 if actor_id not in request.allowed_approver_ids:
                     raise ChangeRequestForbidden("Actor is not an authorized approver")
                 if request.approval_expires_at is None or now >= request.approval_expires_at:
@@ -441,11 +454,15 @@ class SQLiteChangeRequestStore:
                 updates.update(status="APPLIED", applied_at=now.isoformat(), outcome_code=None)
             elif operation == "conflict":
                 if status != "APPROVED":
-                    raise ChangeRequestInvalidTransition("Only approved requests can conflict at apply time")
+                    raise ChangeRequestInvalidTransition(
+                        "Only approved requests can conflict at apply time"
+                    )
                 updates.update(status="CONFLICT", outcome_code="STALE_SNAPSHOT")
             elif operation == "failed":
                 if status != "APPROVED":
-                    raise ChangeRequestInvalidTransition("Only approved requests can fail at apply time")
+                    raise ChangeRequestInvalidTransition(
+                        "Only approved requests can fail at apply time"
+                    )
                 updates.update(status="FAILED", outcome_code=outcome_code)
             else:
                 raise ChangeRequestError("Unknown change-request operation")
