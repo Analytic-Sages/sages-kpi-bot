@@ -1,7 +1,7 @@
-"""Authenticated, read-only administration API for Polaris.
+"""Authenticated read-only administration APIs for Polaris.
 
-Operational write endpoints intentionally do not live here. Task/KPI data endpoints remain
-unavailable until the live workbook schema and editable-field policy have been approved.
+Task/KPI mutation endpoints are intentionally absent. The team performance endpoint provides
+aggregates and selected follow-up details without mutating the source workbook.
 """
 from __future__ import annotations
 
@@ -96,8 +96,8 @@ def create_admin_api_router() -> APIRouter:
                     "task_and_kpi_browsing": False,
                     "task_and_kpi_editing": False,
                     "task_and_kpi_reason": (
-                        "Pending Operations Manager workbook completion and approved "
-                        "live worksheet schema/editable-field review."
+                        "Full task/KPI browsing and editing remain pending workbook review; "
+                        "read-only performance aggregates are available separately."
                     ),
                 },
                 "audit_store": {
