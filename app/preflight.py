@@ -12,8 +12,8 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-from app.config import Settings, get_settings
 from app.change_requests.workbook_audit import change_policy_findings
+from app.config import Settings, get_settings
 from app.sheets.client import GoogleSheetsClient, GoogleSheetsError, google_auth_mode
 
 CORE_SHEETS: dict[str, set[str]] = {
