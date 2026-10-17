@@ -164,12 +164,47 @@
           </div>
         </section>
 
-        <section class="pending-panel" aria-labelledby="pending-heading">
-          <div class="pending-icon" aria-hidden="true">!</div>
-          <div>
-            <h2 id="pending-heading">Task and KPI management is not enabled</h2>
-            <p>These screens will remain unavailable until the live workbook schema, formula-owned columns, and approved editable fields have been reviewed. No spreadsheet writes can be initiated from this control centre.</p>
+        <section class="section-block" aria-labelledby="task-records-heading">
+          <div class="section-heading">
+            <div><p class="eyebrow">OPERATIONAL WORK</p><h2 id="task-records-heading">Task register</h2><p class="muted">Read-only task records from Google Sheets. Editing remains gated.</p></div>
+            <span id="tasks-count" class="muted small">Waiting for data</span>
           </div>
+          <form id="task-record-filter" class="filter-bar">
+            <label>Search
+              <input id="task-query" name="query" type="search" maxlength="200" placeholder="Task, ID or owner" />
+            </label>
+            <label>Status
+              <select id="task-status" name="status">
+                <option value="">All statuses</option><option value="open">Open</option><option value="in_progress">In progress</option><option value="blocked">Blocked</option><option value="completed">Completed</option><option value="cancelled">Cancelled</option><option value="other">Other</option>
+              </select>
+            </label>
+            <label class="checkbox-label"><input id="task-overdue-only" type="checkbox" /> Overdue only</label>
+            <button class="button button-primary" type="submit">Apply</button>
+            <button id="task-filter-reset" class="button button-secondary" type="button">Reset</button>
+          </form>
+          <div id="tasks-error" class="notice notice-error" role="alert" hidden></div>
+          <div class="table-wrap"><table><thead><tr><th>Task</th><th>Owner</th><th>Team</th><th>Status</th><th>Due date</th><th>Follow-up</th></tr></thead><tbody id="tasks-body"><tr><td colspan="6" class="empty-cell">Loading tasks…</td></tr></tbody></table></div>
+        </section>
+
+        <section class="section-block" aria-labelledby="kpi-records-heading">
+          <div class="section-heading">
+            <div><p class="eyebrow">MEASUREMENT</p><h2 id="kpi-records-heading">KPI register</h2><p class="muted">Latest recorded actuals are shown beside registered targets.</p></div>
+            <span id="kpis-count" class="muted small">Waiting for data</span>
+          </div>
+          <form id="kpi-record-filter" class="filter-bar">
+            <label>Team
+              <input id="kpi-team" name="team" type="text" maxlength="128" placeholder="Exact team name" />
+            </label>
+            <label>Owner
+              <input id="kpi-person" name="person" type="text" maxlength="256" placeholder="Name or person ID" />
+            </label>
+            <label class="checkbox-label"><input id="kpi-include-inactive" type="checkbox" /> Include inactive</label>
+            <button class="button button-primary" type="submit">Apply</button>
+            <button id="kpi-filter-reset" class="button button-secondary" type="button">Reset</button>
+          </form>
+          <div id="kpis-error" class="notice notice-error" role="alert" hidden></div>
+          <div class="table-wrap"><table><thead><tr><th>KPI</th><th>Owner</th><th>Team</th><th>Target</th><th>Latest actual</th><th>Week</th><th>State</th></tr></thead><tbody id="kpis-body"><tr><td colspan="7" class="empty-cell">Loading KPIs…</td></tr></tbody></table></div>
+          <p class="muted small">Task and KPI editing is not exposed. Editable fields and status transitions must be explicitly approved and validated before a write endpoint is enabled.</p>
         </section>
       </section>
       <footer class="footer"><span>Polaris · Analytic Sages</span><span>Admin access · Read-only</span></footer>
