@@ -450,7 +450,15 @@
     }
     const start = data.total ? data.offset + 1 : 0;
     const end = Math.min(data.offset + data.limit, data.total);
-    byId("tasks-count").textContent = number(data.total) + " tasks";
+    const taskIssues = data.data_quality
+      ? Number(data.data_quality.duplicate_task_ids || 0)
+        + Number(data.data_quality.duplicate_person_ids || 0)
+        + Number(data.data_quality.tasks_missing_id || 0)
+        + Number(data.data_quality.tasks_missing_owner || 0)
+        + Number(data.data_quality.tasks_unknown_or_ambiguous_owner || 0)
+      : 0;
+    byId("tasks-count").textContent = number(data.total) + " tasks"
+      + (taskIssues ? " · " + taskIssues + " source data issues" : "");
     byId("tasks-page-count").textContent = "Showing " + start + "–" + end + " of " + data.total;
     byId("tasks-previous").disabled = data.offset <= 0;
     byId("tasks-next").disabled = data.offset + data.limit >= data.total;
@@ -476,7 +484,13 @@
     }
     const start = data.total ? data.offset + 1 : 0;
     const end = Math.min(data.offset + data.limit, data.total);
-    byId("kpis-count").textContent = number(data.total) + " KPIs";
+    const kpiIssues = data.data_quality
+      ? Number(data.data_quality.duplicate_kpi_ids || 0)
+        + Number(data.data_quality.duplicate_person_ids || 0)
+        + Number(data.data_quality.kpis_missing_id || 0)
+      : 0;
+    byId("kpis-count").textContent = number(data.total) + " KPIs"
+      + (kpiIssues ? " · " + kpiIssues + " source data issues" : "");
     byId("kpis-page-count").textContent = "Showing " + start + "–" + end + " of " + data.total;
     byId("kpis-previous").disabled = data.offset <= 0;
     byId("kpis-next").disabled = data.offset + data.limit >= data.total;
