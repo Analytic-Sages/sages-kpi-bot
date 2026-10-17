@@ -2,7 +2,7 @@
   "use strict";
 
   const byId = (id) => document.getElementById(id);
-  const state = { csrf: null, offset: 0, limit: 25, total: 0, loading: false, analyticsLoading: false, analytics: null, taskOffset: 0, kpiOffset: 0, recordsLoading: false };
+  const state = { csrf: null, offset: 0, limit: 25, total: 0, loading: false, analyticsLoading: false, analytics: null, taskOffset: 0, kpiOffset: 0, recordsLoading: false, taskRequest: 0, kpiRequest: 0 };
   const signedOut = byId("signed-out");
   const dashboard = byId("dashboard");
   const environmentPill = byId("environment-pill");
@@ -484,6 +484,7 @@
   }
 
   async function loadTaskRecords() {
+    const requestId = ++state.taskRequest;
     const params = new URLSearchParams({ limit: "25", offset: String(state.taskOffset) });
     const query = byId("task-query").value.trim();
     const status = byId("task-status").value;
@@ -493,9 +494,10 @@
     byId("tasks-error").hidden = true;
     try {
       const data = await requestJson("/api/v1/admin/tasks?" + params.toString());
+      if (requestId !== state.taskRequest) return;
       renderTasks(data);
     } catch (error) {
-      if (dashboard.hidden) return;
+      if (dashboard.hidden || requestId !== state.taskRequest) return;
       byId("tasks-error").textContent = error.message || "Task data could not be loaded.";
       byId("tasks-error").hidden = false;
       byId("tasks-count").textContent = "Data unavailable";
@@ -507,6 +509,7 @@
   }
 
   async function loadKpiRecords() {
+    const requestId = ++state.kpiRequest;
     const params = new URLSearchParams({ limit: "25", offset: String(state.kpiOffset) });
     const team = byId("kpi-team").value.trim();
     const person = byId("kpi-person").value.trim();
@@ -516,9 +519,10 @@
     byId("kpis-error").hidden = true;
     try {
       const data = await requestJson("/api/v1/admin/kpis?" + params.toString());
+      if (requestId !== state.kpiRequest) return;
       renderKpis(data);
     } catch (error) {
-      if (dashboard.hidden) return;
+      if (dashboard.hidden || requestId !== state.kpiRequest) return;
       byId("kpis-error").textContent = error.message || "KPI data could not be loaded.";
       byId("kpis-error").hidden = false;
       byId("kpis-count").textContent = "Data unavailable";
