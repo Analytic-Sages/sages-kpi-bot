@@ -116,26 +116,26 @@ Implemented in the read-only API increment: `GET /api/v1/admin/overview` and `GE
 ## Stage 3 — Admin-only frontend
 
 ### Initial screens
-- [ ] Sign-in/session handling and access-denied state.
-- [ ] Overview: tasks, overdue/blocked work, KPI health, integration state, and data freshness.
+- [x] Sign-in entry point, session check, and signed-out state at same-origin `/control/`.
+- [x] Read-only configuration overview and safety flags. Task counts, overdue work, and KPI health remain deferred pending approved workbook schema/read models.
 - [ ] Task list/detail/edit with allowlisted fields, confirmation, conflict refresh, and outcome states.
 - [ ] KPI list/detail/edit for approved fields.
-- [ ] Audit history.
+- [x] Paginated, filterable audit history.
 - [ ] Reminder/delivery monitoring when backend delivery records are available.
-- [ ] System/preflight status and safe configuration visibility.
+- [x] Safe configuration visibility. Existing protected preflight remains a separate endpoint.
 
 ### Tasks
-- [ ] Build with Next.js, React, and TypeScript after the API contract is stable.
-- [ ] Use the backend API exclusively for operational reads/writes.
-- [ ] Keep privileged secrets out of browser bundles and client storage.
-- [ ] Implement secure session handling, CSRF protections where applicable, and safe rendering.
-- [ ] Show loading, empty, stale, partial-failure, unauthorized, conflict, and retry states explicitly.
-- [ ] Add component and end-to-end tests for admin-only access and mutation workflows.
+- [ ] Migrate to Next.js/React/TypeScript only after a same-origin static-export build/deployment strategy is approved; the initial dependency-free UI preserves the current cookie model.
+- [x] Use the backend API exclusively for operational reads; the UI does not read Google Sheets directly.
+- [x] Keep privileged secrets out of browser bundles and persistent client storage; CSRF token is held in memory only.
+- [x] Implement same-origin session handling, CSRF-protected logout, safe DOM rendering, CSP, and security headers.
+- [x] Show loading, empty, API-error, unauthorized/session-expiry, and refresh states for the current read-only views.
+- [x] Add API/static UI smoke tests and CI JavaScript syntax validation. Browser-level end-to-end tests remain open.
 
 ### Exit gate
-- [ ] A non-admin cannot access admin pages or protected APIs.
+- [x] Anonymous users cannot access protected admin APIs; UI data loads only after the session check succeeds. Deployed non-admin denial test remains open.
 - [ ] Admin changes go through the same tested backend service and audit path as other interfaces.
-- [ ] The UI does not claim writes succeeded unless the API returns a verified result.
+- [x] No write actions are exposed in this increment.
 
 ## Stage 4 — Controlled write acceptance
 
