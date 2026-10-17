@@ -42,7 +42,8 @@ Implementation contract: [`PHASE_2_FIELD_POLICY_AND_APPROVALS.md`](PHASE_2_FIELD
 - [x] Enforce requester identity, separate Tier 2 approver identity, no self-approval, 10-minute confirmation expiry, and 48-hour approval expiry in the state store.
 - [x] Persist append-only request-transition events and deduplicate source messages / request IDs.
 - [x] Add typed change proposals and fail-closed pure policy validation for task/KPI changes (dry-run model only; not wired to Sheets or user-facing handlers).
-- [ ] Verify the live workbook headers and formula ownership before enabling any worksheet allowlist.
+- [x] Add a read-only preflight audit for proposed writable headers and formula-visible cells; report only field names, counts, and gate findings.
+- [ ] Run the audit against the live workbook and manually verify headers, formula ownership, protected ranges, and the authoritative Status column before enabling any worksheet allowlist.
 - Validate stable IDs, owner references, permitted status transitions, field values, and expected-value snapshots.
 - Route all changes through `SafeSheetMutationService`; require actor identity, correlation/request ID, audit intent/outcome, and read-after-write verification.
 - Add preview/confirmation UX, conflict refresh, uncertain-outcome state, and idempotent request handling.
@@ -96,5 +97,7 @@ Implementation contract: [`PHASE_2_FIELD_POLICY_AND_APPROVALS.md`](PHASE_2_FIELD
 - Read-only admin sign-in, overview, audit history, and team performance analytics are merged on `main`.
 - The task/KPI record centre is merged on `main`; CI passed on the merge commit and the operator confirmed the deployed read-only Control Centre.
 - PR #36 merged: Phase 2 requirements contract and independent `ENABLE_BOT_WRITES=false` gate are in `main`.
-- PR #37 merged: durable SQLite change-request state machine. The current branch adds typed proposals and pure policy validation with stale-row fingerprints, formula-field rejection, field/tier allowlists, status/date/numeric checks, and identity/owner checks. It does not expose command handlers or perform Sheets writes. Live workbook schema and formula ownership remain unverified; all production write and notification flags remain disabled.
+- PR #37 merged: durable SQLite change-request state machine.
+- PR #38 merged: typed proposals and pure policy validation with stale-row fingerprints, formula-field rejection, field/tier allowlists, status/date/numeric checks, and identity/owner checks.
+- Current branch adds a read-only schema/formula audit to the existing preflight. It reports aggregate findings and never writes to Sheets. The audit has not yet been run against the live workbook; human verification of formula ownership, protected ranges, and the authoritative Status column remains outstanding. All production write and notification flags remain disabled.
 - Live mutation policies, workbook schema, formula ownership, protected ranges, and bot identity/approval routing remain unverified until explicitly checked.
