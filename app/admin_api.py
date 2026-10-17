@@ -140,6 +140,35 @@ def create_admin_api_router() -> APIRouter:
             )
         try:
             sheets = await asyncio.to_thread(GoogleSheetsClient.from_settings, settings)
+            worksheet_headers = {
+                "People Directory": {"Person ID", "Full Name", "Team", "Status"},
+                "Master Task Tracker": {"Task ID", "Assigned To ID", "Status"},
+                "KPI Register": {
+                    "KPI ID", "Team", "Role", "KPI", "Owner Person ID", "Target", "Active?"
+                },
+                "Weekly KPI Log": {
+                    "Week Start", "KPI ID", "Owner Person ID", "Target", "Actual"
+                },
+            }
+            header_results = await asyncio.gather(
+                *[sheets.read_headers(name) for name in worksheet_headers]
+            )
+            if any(
+                not required.issubset(set(actual))
+                for required, actual in zip(
+                    worksheet_headers.values(), header_results, strict=True
+                )
+            ):
+                logger.warning("admin_team_performance_failed reason=worksheet_schema")
+                return _json_response(
+                    {
+                        "detail": (
+                            "Required workbook headers are missing. Review the read-only "
+                            "deployment preflight before using team analytics."
+                        )
+                    },
+                    status_code=503,
+                )
             people_rows, task_rows, kpi_register_rows, kpi_log_rows = await asyncio.gather(
                 sheets.read_records("People Directory"),
                 sheets.read_records("Master Task Tracker"),
