@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import re
 from collections import Counter, defaultdict
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 
@@ -353,7 +353,7 @@ def build_team_performance(
         })
 
     return {
-        "generated_at": datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
+        "generated_at": datetime.now(UTC).replace(microsecond=0).isoformat(),
         "period": {"start": start_date.isoformat(), "end": end_date.isoformat(), "basis": "task due date when available; otherwise task is included in current status totals; KPI week start"},
         "filters": {"team": team_filter or None, "person": person_filter or None, "status": status_filter or None},
         "summary": {
