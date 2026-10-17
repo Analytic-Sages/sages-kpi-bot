@@ -10,16 +10,31 @@ def test_team_and_member_metrics_and_followup_queue():
         {"Person ID": "p3", "Full Name": "Inactive", "Team": "Research", "Status": "Inactive"},
     ]
     tasks = [
-        {"Task ID": "t1", "Task Name": "Ship report", "Assigned To ID": "p1", "Status": "Completed", "Due Date": "2026-10-10"},
-        {"Task ID": "t2", "Task Name": "Review data", "Assigned To ID": "p1", "Status": "In Progress", "Due Date": "2026-10-11", "Last Updated": "2026-10-09"},
-        {"Task ID": "t3", "Task Name": "Fix pipeline", "Assigned To ID": "p2", "Status": "Blocked", "Due Date": "2026-10-20"},
+        {
+            "Task ID": "t1", "Task Name": "Ship report", "Assigned To ID": "p1",
+            "Status": "Completed", "Due Date": "2026-10-10",
+        },
+        {
+            "Task ID": "t2", "Task Name": "Review data", "Assigned To ID": "p1",
+            "Status": "In Progress", "Due Date": "2026-10-11", "Last Updated": "2026-10-09",
+        },
+        {
+            "Task ID": "t3", "Task Name": "Fix pipeline", "Assigned To ID": "p2",
+            "Status": "Blocked", "Due Date": "2026-10-20",
+        },
         {"Task ID": "t4", "Task Name": "No date", "Assigned To ID": "p2", "Status": "Open"},
     ]
     kpi_register = [
-        {"KPI ID": "k1", "KPI": "Reports", "Owner Person ID": "p1", "Target": "10", "Team": "Research"},
+        {
+            "KPI ID": "k1", "KPI": "Reports", "Owner Person ID": "p1",
+            "Target": "10", "Team": "Research",
+        },
     ]
     kpi_log = [
-        {"Week Start": "2026-10-12", "KPI ID": "k1", "Owner Person ID": "p1", "Target": "10", "Actual": "7"},
+        {
+            "Week Start": "2026-10-12", "KPI ID": "k1", "Owner Person ID": "p1",
+            "Target": "10", "Actual": "7",
+        },
     ]
     result = build_team_performance(
         people, tasks, kpi_register, kpi_log, today=date(2026, 10, 17),
