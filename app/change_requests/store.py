@@ -6,11 +6,13 @@ Google Sheets writes; callers must apply those checks independently.
 from __future__ import annotations
 
 import asyncio
+from contextlib import contextmanager
 import json
 import sqlite3
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from collections.abc import Iterator
 from typing import Any, Literal
 from uuid import uuid4
 
@@ -158,7 +160,7 @@ class SQLiteChangeRequestStore:
         reason: str | None,
         now: datetime,
     ) -> ChangeRequest:
-        with self._connect() as connection:
+        with self._connection() as connection:
             connection.execute("BEGIN IMMEDIATE")
             if source_chat_id is not None:
                 existing = connection.execute(
@@ -174,7 +176,12 @@ class SQLiteChangeRequestStore:
                 "SELECT * FROM change_requests WHERE request_id = ?", (request_id,)
             ).fetchone()
             if existing_id is not None:
-                return self._from_row(existing_id)
+                existing_request = self._from_row(existing_id)
+                if existing_request.actor_id != actor_id:
+                    raise ChangeRequestForbidden("Request ID is already bound to another actor")
+                if existing_request.payload != payload or existing_request.tier != tier:
+                    raise ChangeRequestError("Request ID is already bound to different request data")
+                return existing_request
             connection.execute(
                 """INSERT INTO change_requests (
                     request_id, actor_id, tier, status, payload_json,
@@ -198,7 +205,17 @@ class SQLiteChangeRequestStore:
             row = connection.execute(
                 "SELECT * FROM change_requests WHERE request_id = ?", (request_id,)
             ).fetchone()
-            return self._from_row(row)
+            record = self._from_row(row)
+            self._record_event(
+                connection,
+                request=record,
+                actor_id=actor_id,
+                action="created",
+                from_status=None,
+                to_status="DRAFT",
+                occurred_at=now,
+            )
+            return record
 
     async def submit_for_confirmation(
         self, request_id: str, *, now: datetime | None = None
@@ -284,7 +301,7 @@ class SQLiteChangeRequestStore:
         return await asyncio.to_thread(self._get_sync, request_id.strip())
 
     def _get_sync(self, request_id: str) -> ChangeRequest:
-        with self._connect() as connection:
+        with self._connection() as connection:
             row = connection.execute(
                 "SELECT * FROM change_requests WHERE request_id = ?", (request_id,)
             ).fetchone()
@@ -297,7 +314,7 @@ class SQLiteChangeRequestStore:
         return await asyncio.to_thread(self._expire_due_sync, timestamp)
 
     def _expire_due_sync(self, now: datetime) -> int:
-        with self._connect() as connection:
+        with self._connection() as connection:
             connection.execute("BEGIN IMMEDIATE")
             cursor = connection.execute(
                 """UPDATE change_requests
@@ -335,7 +352,7 @@ class SQLiteChangeRequestStore:
         actor_id: str | None,
         outcome_code: str | None,
     ) -> ChangeRequest:
-        with self._connect() as connection:
+        with self._connection() as connection:
             connection.execute("BEGIN IMMEDIATE")
             row = connection.execute(
                 "SELECT * FROM change_requests WHERE request_id = ?", (request_id,)
@@ -412,7 +429,71 @@ class SQLiteChangeRequestStore:
             refreshed = connection.execute(
                 "SELECT * FROM change_requests WHERE request_id = ?", (request_id,)
             ).fetchone()
-            return self._from_row(refreshed)
+            result = self._from_row(refreshed)
+            event_actor = actor_id or request.actor_id
+            self._record_event(
+                connection,
+                request=result,
+                actor_id=event_actor,
+                action=operation,
+                from_status=status,
+                to_status=result.status,
+                occurred_at=now,
+                outcome_code=result.outcome_code,
+            )
+            return result
+
+    @staticmethod
+    def _record_event(
+        connection: sqlite3.Connection,
+        *,
+        request: ChangeRequest,
+        actor_id: str,
+        action: str,
+        from_status: str | None,
+        to_status: str,
+        occurred_at: datetime,
+        outcome_code: str | None = None,
+    ) -> None:
+        connection.execute(
+            """INSERT INTO change_request_events (
+                event_id, request_id, occurred_at, actor_id, action,
+                from_status, to_status, outcome_code
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                str(uuid4()),
+                request.request_id,
+                occurred_at.isoformat(),
+                actor_id,
+                action,
+                from_status,
+                to_status,
+                outcome_code,
+            ),
+        )
+
+    async def list_events(self, request_id: str) -> list[dict[str, Any]]:
+        return await asyncio.to_thread(self._list_events_sync, request_id.strip())
+
+    def _list_events_sync(self, request_id: str) -> list[dict[str, Any]]:
+        with self._connection() as connection:
+            rows = connection.execute(
+                """SELECT event_id, request_id, occurred_at, actor_id, action,
+                          from_status, to_status, outcome_code
+                   FROM change_request_events WHERE request_id = ?
+                   ORDER BY occurred_at, event_id""",
+                (request_id,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    @contextmanager
+    def _connection(self) -> Iterator[sqlite3.Connection]:
+        connection = self._connect()
+        try:
+            with connection:
+                yield connection
+        finally:
+            connection.close()
 
     def _connect(self) -> sqlite3.Connection:
         self.database_path.parent.mkdir(parents=True, exist_ok=True)
@@ -439,6 +520,19 @@ class SQLiteChangeRequestStore:
                 applied_at TEXT,
                 outcome_code TEXT,
                 UNIQUE (source_chat_id, source_message_id)
+            )"""
+        )
+        connection.execute(
+            """CREATE TABLE IF NOT EXISTS change_request_events (
+                event_id TEXT PRIMARY KEY,
+                request_id TEXT NOT NULL,
+                occurred_at TEXT NOT NULL,
+                actor_id TEXT NOT NULL,
+                action TEXT NOT NULL,
+                from_status TEXT,
+                to_status TEXT NOT NULL,
+                outcome_code TEXT,
+                FOREIGN KEY (request_id) REFERENCES change_requests(request_id)
             )"""
         )
         return connection
