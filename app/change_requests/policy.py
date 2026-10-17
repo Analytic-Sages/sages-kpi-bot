@@ -54,7 +54,7 @@ ALLOWED_STATUS_TRANSITIONS: dict[str, frozenset[str]] = {
     "On Hold": frozenset({"In Progress", "Cancelled"}),
     "Completed": frozenset({"Closed"}),
     "Cancelled": frozenset({"Closed"}),
-    "Closed": frozenset(),
+    "Closed": frozenset({"In Progress"}),
 }
 MANAGER_ROLES = frozenset({"team_lead", "operations_manager"})
 
@@ -93,6 +93,7 @@ class PolicyContext:
     assigned_by_id: str | None = None
     actor_roles: frozenset[str] = frozenset()
     known_active_person_ids: frozenset[str] = frozenset()
+    known_active_assignee_values: frozenset[str] = frozenset()
     # False until live workbook verification identifies the authoritative status cell.
     status_is_authoritative: bool = False
 
@@ -168,8 +169,8 @@ def _validate_status(current: str, requested: str, tier: int, context: PolicyCon
         raise ChangePolicyError(f"Status transition {current!r} -> {requested!r} is not allowed")
     if requested == "Completed" and tier != 2:
         raise ChangePolicyError("Moving a task to Completed requires Tier 2 approval")
-    if current == "Closed" and requested != current:
-        raise ChangePolicyError("Reopening a Closed task requires a separately approved policy")
+    if current == "Closed" and (requested != "In Progress" or tier != 2):
+        raise ChangePolicyError("Reopening a Closed task requires Tier 2 approval")
 
 
 def validate_proposal(
@@ -216,7 +217,10 @@ def validate_proposal(
     required_tier = max(policy[field] for field in proposal.changes)
     if (
         proposal.record_kind == "task"
-        and proposal.changes.get("Status", "").strip() == "Completed"
+        and (
+            proposal.changes.get("Status", "").strip() == "Completed"
+            or context.current_row.get("Status", "").strip() == "Closed"
+        )
     ):
         required_tier = 2
     if proposal.tier != required_tier:
@@ -230,7 +234,7 @@ def validate_proposal(
             raise ChangePolicyError("Actor is not authorized for this task")
         if "Assigned To" in proposal.changes:
             assignee = proposal.changes["Assigned To"].strip()
-            if assignee not in context.known_active_person_ids:
+            if assignee not in context.known_active_assignee_values:
                 raise ChangePolicyError("Assigned To must reference a known active person")
     else:
         if not context.owner_id or context.owner_id != context.actor_id:
