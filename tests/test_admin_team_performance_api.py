@@ -30,7 +30,10 @@ class FakeSheets:
                 }
             ],
             "KPI Register": [
-                {"KPI ID": "k1", "KPI": "Reports", "Owner Person ID": "p1", "Target": "10"}
+                {
+                    "KPI ID": "k1", "KPI": "Reports", "Owner Person ID": "p1",
+                    "Target": "10", "Active?": "Yes",
+                }
             ],
             "Weekly KPI Log": [
                 {
