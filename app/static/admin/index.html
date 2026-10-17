@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <meta name="description" content="Polaris administrator control centre" />
+    <title>Polaris · Admin Control Centre</title>
+    <link rel="stylesheet" href="/control/app.css" />
+    <script src="/control/app.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="topbar">
+      <a class="brand" href="/control/" aria-label="Polaris Admin home">
+        <span class="brand-mark" aria-hidden="true">P</span>
+        <span><strong>POLARIS</strong><small>ADMIN CONTROL CENTRE</small></span>
+      </a>
+      <div class="topbar-right">
+        <span class="environment-pill" id="environment-pill">Checking session</span>
+        <button id="logout-button" class="button button-quiet" type="button" hidden>Sign out</button>
+      </div>
+    </header>
+
+    <main id="main" class="page-shell">
+      <section id="signed-out" class="sign-in-panel" aria-labelledby="signin-title" hidden>
+        <p class="eyebrow">SECURE OPERATIONS</p>
+        <h1 id="signin-title">Welcome to Polaris.</h1>
+        <p class="lead">Sign in with an approved Google account to view system status and audit history.</p>
+        <a class="button button-primary" href="/auth/login">Continue with Google <span aria-hidden="true">↗</span></a>
+        <p class="muted small">Access is restricted to accounts configured by the Polaris administrator.</p>
+      </section>
+
+      <section id="dashboard" hidden>
+        <div class="page-heading">
+          <div>
+            <p class="eyebrow">OPERATIONS OVERVIEW</p>
+            <h1>Control centre</h1>
+            <p id="welcome-line" class="lead">Loading your workspace…</p>
+          </div>
+          <button id="refresh-button" class="button button-secondary" type="button">Refresh data</button>
+        </div>
+
+        <div id="global-error" class="notice notice-error" role="alert" hidden></div>
+        <div id="global-notice" class="notice" role="status" aria-live="polite" hidden></div>
+
+        <section aria-labelledby="system-heading" class="section-block">
+          <div class="section-heading">
+            <div><p class="eyebrow">LIVE CONFIGURATION</p><h2 id="system-heading">System status</h2></div>
+            <span id="generated-at" class="muted small"></span>
+          </div>
+          <div id="summary-grid" class="summary-grid" aria-live="polite"></div>
+        </section>
+
+        <section aria-labelledby="safety-heading" class="section-block">
+          <div class="section-heading">
+            <div><p class="eyebrow">GUARDRAILS</p><h2 id="safety-heading">Safety controls</h2></div>
+          </div>
+          <div id="safety-grid" class="safety-grid"></div>
+        </section>
+
+        <section aria-labelledby="audit-heading" class="section-block">
+          <div class="section-heading audit-heading">
+            <div><p class="eyebrow">TRACEABILITY</p><h2 id="audit-heading">Audit history</h2><p class="muted">Read-only record of audited operational changes.</p></div>
+          </div>
+          <form id="audit-filter-form" class="filter-bar">
+            <label>Outcome
+              <select id="outcome-filter" name="outcome">
+                <option value="">All outcomes</option>
+                <option value="preview">Preview</option>
+                <option value="started">Started</option>
+                <option value="verified">Verified</option>
+                <option value="conflict">Conflict</option>
+                <option value="uncertain">Uncertain</option>
+              </select>
+            </label>
+            <label>Worksheet
+              <input id="worksheet-filter" name="worksheet" type="text" maxlength="128" placeholder="Exact worksheet name" />
+            </label>
+            <button class="button button-secondary" type="submit">Apply filters</button>
+          </form>
+          <div id="audit-error" class="notice notice-error" role="alert" hidden></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th scope="col">Time (UTC)</th><th scope="col">Action</th><th scope="col">Record</th><th scope="col">Fields</th><th scope="col">Change</th><th scope="col">Outcome</th></tr></thead>
+              <tbody id="audit-body"><tr><td colspan="6" class="empty-cell">Loading audit history…</td></tr></tbody>
+            </table>
+          </div>
+          <div class="pagination">
+            <span id="audit-count" class="muted small">Loading records…</span>
+            <div class="pagination-actions">
+              <button id="previous-page" class="button button-quiet" type="button" disabled>Previous</button>
+              <button id="next-page" class="button button-quiet" type="button" disabled>Next</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="pending-panel" aria-labelledby="pending-heading">
+          <div class="pending-icon" aria-hidden="true">!</div>
+          <div>
+            <h2 id="pending-heading">Task and KPI management is not enabled</h2>
+            <p>These screens will remain unavailable until the live workbook schema, formula-owned columns, and approved editable fields have been reviewed. No spreadsheet writes can be initiated from this control centre.</p>
+          </div>
+        </section>
+      </section>
+      <footer class="footer"><span>Polaris · Analytic Sages</span><span>Admin access · Read-only</span></footer>
+    </main>
+  </body>
+</html>
