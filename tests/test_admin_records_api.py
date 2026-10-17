@@ -56,8 +56,6 @@ def configured_settings(**overrides):
 
 
 def client_for(settings=None, authenticated=True):
-    from app import admin_records_api
-
     settings = settings or configured_settings()
     app = FastAPI()
     app.state.settings = settings
