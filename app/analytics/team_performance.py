@@ -10,7 +10,6 @@ from collections import Counter, defaultdict
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
-
 PEOPLE_SHEET = "People Directory"
 TASKS_SHEET = "Master Task Tracker"
 KPI_REGISTER_SHEET = "KPI Register"
