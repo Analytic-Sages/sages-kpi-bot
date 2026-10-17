@@ -120,7 +120,7 @@ def create_admin_api_router() -> APIRouter:
             result = await SQLiteAuditLog(
                 request.app.state.settings.audit_db_path
             ).list_events(limit=limit, offset=offset, outcome=outcome, worksheet=worksheet)
-        except (OSError, RuntimeError, sqlite3.Error):
+        except (OSError, RuntimeError, ValueError, sqlite3.Error):
             logger.warning("admin_audit_read_failed reason=store_unavailable")
             return _json_response(
                 {"detail": "Audit history is temporarily unavailable"}, status_code=503
