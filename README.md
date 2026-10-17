@@ -46,7 +46,7 @@ Use a dedicated account rather than a personal employee account where practical.
 
 See [Google admin authentication setup](docs/ADMIN_AUTH.md) for the $0-cost Google OIDC sign-in design, Render environment variables, approved-email allowlist, cookie/session behavior, and acceptance gates. Authentication is separate from spreadsheet-write authorization; all operational side-effect flags remain disabled until their gates pass.
 
-The read-only Polaris admin control centre is available at `/control/` after deployment. It uses the Google OIDC session and provides configuration status plus audit history; it does not yet expose task/KPI rows or editing. See [the admin API and control-centre contract](docs/ADMIN_API.md). Task/KPI management remains gated on confirmation of the live workbook schema and editable fields.
+The read-only Polaris admin control centre is available at `/control/` after deployment. It uses the Google OIDC session and provides configuration status, audit history, team performance analytics, paginated task browsing, and KPI register browsing. Task/KPI editing remains disabled until editable columns, formula ownership, and status-transition rules are explicitly approved. See [the admin API and control-centre contract](docs/ADMIN_API.md) and [the six-phase implementation gates](docs/SIX_PHASE_IMPLEMENTATION.md).
 
 ## Health checks
 

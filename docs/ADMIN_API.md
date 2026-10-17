@@ -4,7 +4,7 @@
 
 The API is mounted at `/api/v1/admin` and uses the same Google OIDC signed session as `/admin/session`. Every route checks the session server-side against the current `ADMIN_EMAILS` allowlist. Responses include `Cache-Control: no-store`.
 
-This increment is deliberately read-only. It does not expose task/KPI rows, does not invoke Google Sheets, and does not call the Sheets mutation service. Task/KPI browsing and editing remain unavailable until the Operations Manager confirms workbook updates are complete and the live headers, formulas, editable columns, stable IDs, and owner/status rules have been reviewed.
+This API surface is read-only. Overview and audit routes do not invoke Google Sheets; the team-performance, task, task-detail, and KPI routes read selected records from the four operational worksheets. No route calls the Sheets mutation service. Editing remains unavailable until editable columns, formula ownership, stable IDs, owner references, and status-transition rules have been explicitly approved.
 
 ## Endpoints
 
@@ -55,9 +55,22 @@ The control centre is hosted by FastAPI under the same origin so the HttpOnly se
 - Read-only GET endpoints do not need a CSRF header. Any future state-changing endpoint must validate the session and `X-CSRF-Token`, validate authorization on the server, and call the audited mutation service.
 - Never put OAuth credentials, session secrets, or CSRF tokens in browser bundles, source control, logs, screenshots, or issue comments.
 
+
+## Read-only task and KPI record APIs
+
+The authenticated control centre exposes three additional read-only endpoints:
+
+- `GET /api/v1/admin/tasks` — bounded pagination (`limit=1..100`, `offset=0..100000`), with optional exact normalized `status`, `team`, `person` (person ID or exact name), free-text `query`, and `overdue_only=true` filters.
+- `GET /api/v1/admin/tasks/{task_id}` — returns a single task only when the stable ID matches exactly one source row; missing and duplicate IDs return 404.
+- `GET /api/v1/admin/kpis` — bounded pagination with optional `team`, `person`, and `active_only=false`; each item includes the latest weekly observation by `Week Start`.
+
+All three endpoints read the live `People Directory`, `Master Task Tracker`, `KPI Register`, and `Weekly KPI Log` source contracts as needed. They return selected operational fields only, use `Cache-Control: no-store`, and return sanitized 503 errors for missing configuration, provider errors, or missing required headers. They do not expose raw worksheet rows, write data, send notifications, or change feature flags. Task and KPI UI tables use safe DOM text rendering and are read-only.
+
+These APIs are an operational browsing increment, not approval to edit the workbook. Any future write route must use an explicit worksheet/field allowlist and `SafeSheetMutationService`, require expected-value snapshots, validate stable IDs and status transitions, record audit outcomes, and verify the write before reporting success. Editable field policies and production write activation remain separate gates.
+
 ## Deferred endpoints
 
-No task/KPI list/detail endpoints are published yet. The schema is not approved and the live workbook is being updated. Do not guess header names, expose raw rows, or create worksheet mutation policies from fixture data. The existing protected `GET /admin/preflight` remains separate and continues to require `PREFLIGHT_TOKEN`.
+Task list/detail and KPI list endpoints are now published as read-only routes and expose selected fields only. Task/KPI write endpoints remain deferred until editable columns and formula ownership are explicitly approved. Do not guess header names or create worksheet mutation policies from fixture data. The existing protected `GET /admin/preflight` remains separate and continues to require `PREFLIGHT_TOKEN`.
 
 ## Verification checklist
 

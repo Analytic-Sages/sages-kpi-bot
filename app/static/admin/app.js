@@ -2,7 +2,7 @@
   "use strict";
 
   const byId = (id) => document.getElementById(id);
-  const state = { csrf: null, offset: 0, limit: 25, total: 0, loading: false, analyticsLoading: false, analytics: null };
+  const state = { csrf: null, offset: 0, limit: 25, total: 0, loading: false, analyticsLoading: false, analytics: null, taskOffset: 0, kpiOffset: 0, recordsLoading: false, taskRequest: 0, kpiRequest: 0 };
   const signedOut = byId("signed-out");
   const dashboard = byId("dashboard");
   const environmentPill = byId("environment-pill");
@@ -422,6 +422,141 @@
     }
   }
 
+  function renderRecordEmpty(tbodyId, columns, message) {
+    const body = byId(tbodyId);
+    body.replaceChildren();
+    const row = element("tr");
+    const cell = element("td", "empty-cell", message);
+    cell.colSpan = columns;
+    row.append(cell);
+    body.append(row);
+  }
+
+  function renderTasks(data) {
+    const body = byId("tasks-body");
+    body.replaceChildren();
+    if (!data.items.length) renderRecordEmpty("tasks-body", 6, "No tasks match these filters.");
+    for (const item of data.items) {
+      const row = element("tr");
+      row.append(
+        element("td", "", item.name + " · " + item.id),
+        element("td", "", item.owner_name),
+        element("td", "", item.team),
+        element("td", "", item.status_label),
+        element("td", "", item.due_date || "—"),
+        element("td", item.overdue || item.status === "blocked" ? "cell-alert" : "", item.overdue ? "Overdue" : item.status === "blocked" ? (item.blocker || "Blocked") : item.updated_date ? "Updated " + item.updated_date : "No update date")
+      );
+      body.append(row);
+    }
+    const start = data.total ? data.offset + 1 : 0;
+    const end = Math.min(data.offset + data.limit, data.total);
+    const taskIssues = data.data_quality
+      ? Number(data.data_quality.duplicate_task_ids || 0)
+        + Number(data.data_quality.duplicate_person_ids || 0)
+        + Number(data.data_quality.tasks_missing_id || 0)
+        + Number(data.data_quality.tasks_missing_owner || 0)
+        + Number(data.data_quality.tasks_unknown_or_ambiguous_owner || 0)
+      : 0;
+    byId("tasks-count").textContent = number(data.total) + " tasks"
+      + (taskIssues ? " · " + taskIssues + " source data issues" : "");
+    byId("tasks-page-count").textContent = "Showing " + start + "–" + end + " of " + data.total;
+    byId("tasks-previous").disabled = data.offset <= 0;
+    byId("tasks-next").disabled = data.offset + data.limit >= data.total;
+    byId("tasks-error").hidden = true;
+  }
+
+  function renderKpiRecords(data) {
+    const body = byId("kpi-records-body");
+    body.replaceChildren();
+    if (!data.items.length) renderRecordEmpty("kpi-records-body", 7, "No KPIs match these filters.");
+    for (const item of data.items) {
+      const row = element("tr");
+      row.append(
+        element("td", "", item.name + " · " + item.id),
+        element("td", "", item.owner_name),
+        element("td", "", item.team),
+        element("td", "", item.target || "—"),
+        element("td", "", item.actual || "—"),
+        element("td", "", item.week_start || "—"),
+        element("td", item.active ? "" : "muted", item.active ? "Active" : "Inactive")
+      );
+      body.append(row);
+    }
+    const start = data.total ? data.offset + 1 : 0;
+    const end = Math.min(data.offset + data.limit, data.total);
+    const kpiIssues = data.data_quality
+      ? Number(data.data_quality.duplicate_kpi_ids || 0)
+        + Number(data.data_quality.duplicate_person_ids || 0)
+        + Number(data.data_quality.kpis_missing_id || 0)
+      : 0;
+    byId("kpis-count").textContent = number(data.total) + " KPIs"
+      + (kpiIssues ? " · " + kpiIssues + " source data issues" : "");
+    byId("kpis-page-count").textContent = "Showing " + start + "–" + end + " of " + data.total;
+    byId("kpis-previous").disabled = data.offset <= 0;
+    byId("kpis-next").disabled = data.offset + data.limit >= data.total;
+    byId("kpis-error").hidden = true;
+  }
+
+  async function loadTaskRecords() {
+    const requestId = ++state.taskRequest;
+    const params = new URLSearchParams({ limit: "25", offset: String(state.taskOffset) });
+    const query = byId("task-query").value.trim();
+    const status = byId("task-status").value;
+    if (query) params.set("query", query);
+    if (status) params.set("status", status);
+    if (byId("task-overdue-only").checked) params.set("overdue_only", "true");
+    byId("tasks-error").hidden = true;
+    try {
+      const data = await requestJson("/api/v1/admin/tasks?" + params.toString());
+      if (requestId !== state.taskRequest) return;
+      renderTasks(data);
+    } catch (error) {
+      if (dashboard.hidden || requestId !== state.taskRequest) return;
+      byId("tasks-error").textContent = error.message || "Task data could not be loaded.";
+      byId("tasks-error").hidden = false;
+      byId("tasks-count").textContent = "Data unavailable";
+      byId("tasks-previous").disabled = true;
+      byId("tasks-next").disabled = true;
+      renderRecordEmpty("tasks-body", 6, "Task data is unavailable. Try refreshing.");
+      byId("tasks-page-count").textContent = "Unavailable";
+    }
+  }
+
+  async function loadKpiRecords() {
+    const requestId = ++state.kpiRequest;
+    const params = new URLSearchParams({ limit: "25", offset: String(state.kpiOffset) });
+    const team = byId("kpi-team").value.trim();
+    const person = byId("kpi-person").value.trim();
+    if (team) params.set("team", team);
+    if (person) params.set("person", person);
+    if (byId("kpi-include-inactive").checked) params.set("active_only", "false");
+    byId("kpis-error").hidden = true;
+    try {
+      const data = await requestJson("/api/v1/admin/kpis?" + params.toString());
+      if (requestId !== state.kpiRequest) return;
+      renderKpiRecords(data);
+    } catch (error) {
+      if (dashboard.hidden || requestId !== state.kpiRequest) return;
+      byId("kpis-error").textContent = error.message || "KPI data could not be loaded.";
+      byId("kpis-error").hidden = false;
+      byId("kpis-count").textContent = "Data unavailable";
+      byId("kpis-previous").disabled = true;
+      byId("kpis-next").disabled = true;
+      renderRecordEmpty("kpi-records-body", 7, "KPI data is unavailable. Try refreshing.");
+      byId("kpis-page-count").textContent = "Unavailable";
+    }
+  }
+
+  async function loadOperationalRecords() {
+    if (state.recordsLoading || dashboard.hidden) return;
+    state.recordsLoading = true;
+    try {
+      await Promise.all([loadTaskRecords(), loadKpiRecords()]);
+    } finally {
+      state.recordsLoading = false;
+    }
+  }
+
   async function refreshAll() {
     if (state.loading || dashboard.hidden) return;
     state.loading = true;
@@ -429,7 +564,7 @@
     byId("refresh-button").textContent = "Refreshing…";
     try {
       await loadOverview();
-      await Promise.all([loadAudit(), loadAnalytics()]);
+      await Promise.all([loadAudit(), loadAnalytics(), loadOperationalRecords()]);
     } catch (error) {
       if (!dashboard.hidden) setNotice("global-error", error.message || "Could not load Polaris status.");
     } finally {
@@ -469,6 +604,46 @@
   byId("analytics-filter-form").addEventListener("submit", (event) => {
     event.preventDefault();
     loadAnalytics();
+  });
+  byId("task-record-filter").addEventListener("submit", (event) => {
+    event.preventDefault();
+    state.taskOffset = 0;
+    loadTaskRecords();
+  });
+  byId("task-filter-reset").addEventListener("click", () => {
+    byId("task-query").value = "";
+    byId("task-status").value = "";
+    byId("task-overdue-only").checked = false;
+    state.taskOffset = 0;
+    loadTaskRecords();
+  });
+  byId("tasks-previous").addEventListener("click", () => {
+    state.taskOffset = Math.max(0, state.taskOffset - 25);
+    loadTaskRecords();
+  });
+  byId("tasks-next").addEventListener("click", () => {
+    state.taskOffset += 25;
+    loadTaskRecords();
+  });
+  byId("kpi-record-filter").addEventListener("submit", (event) => {
+    event.preventDefault();
+    state.kpiOffset = 0;
+    loadKpiRecords();
+  });
+  byId("kpi-filter-reset").addEventListener("click", () => {
+    byId("kpi-team").value = "";
+    byId("kpi-person").value = "";
+    byId("kpi-include-inactive").checked = false;
+    state.kpiOffset = 0;
+    loadKpiRecords();
+  });
+  byId("kpis-previous").addEventListener("click", () => {
+    state.kpiOffset = Math.max(0, state.kpiOffset - 25);
+    loadKpiRecords();
+  });
+  byId("kpis-next").addEventListener("click", () => {
+    state.kpiOffset += 25;
+    loadKpiRecords();
   });
   byId("analytics-reset").addEventListener("click", () => {
     const now = new Date();
