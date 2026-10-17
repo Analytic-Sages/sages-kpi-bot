@@ -211,7 +211,7 @@ def create_admin_auth_router(settings: Settings) -> APIRouter:
         session = _serializer(settings, "polaris-admin-session-v1").dumps(
             {"email": email, "csrf": secrets.token_urlsafe(32), "issued_at": int(time.time())}
         )
-        response = RedirectResponse("/admin/session", status_code=303)
+        response = RedirectResponse("/control/", status_code=303)
         _safe_cookie(
             response,
             settings,
