@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import re
 from collections import Counter, defaultdict
-from datetime import date, datetime, timedelta, UTC
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 
