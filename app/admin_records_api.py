@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections import Counter
 from datetime import UTC, date, datetime
 from typing import Any
 
@@ -74,7 +75,11 @@ def _parse_date(value: str) -> date | None:
 
 
 def _first_value(row: dict[str, str], headers: tuple[str, ...]) -> str:
-    return next((row.get(header, "").strip() for header in headers if row.get(header, "").strip()), "")
+    for header in headers:
+        value = row.get(header, "").strip()
+        if value:
+            return value
+    return ""
 
 
 def _record_date(row: dict[str, str], headers: tuple[str, ...]) -> str | None:
@@ -130,28 +135,40 @@ def create_admin_records_router() -> APIRouter:
                 sheets.read_records(PEOPLE), sheets.read_records(TASKS)
             )
             today = datetime.now(UTC).date()
+            person_ids = Counter(
+                _record_id(row, "Person ID") for row in people_rows
+                if _record_id(row, "Person ID")
+            )
+            duplicate_people = sum(count > 1 for count in person_ids.values())
             people: dict[str, dict[str, str]] = {}
             for row in people_rows:
                 person_id = _record_id(row, "Person ID")
-                if not person_id or person_id in people:
+                if not person_id or person_ids[person_id] != 1:
                     continue
                 people[person_id] = {
                     "id": person_id,
                     "name": row.get("Full Name", "").strip() or person_id,
                     "team": row.get("Team", "").strip() or "Unassigned team",
-                    "active": _status(row.get("Status", "")) != "cancelled"
-                        and row.get("Status", "").strip().casefold() in
-                        {"active", "yes", "true", "1", "enabled", "y", "current"},
                 }
-            seen: set[str] = set()
+            task_ids = Counter(
+                _record_id(row, "Task ID") for row in task_rows
+                if _record_id(row, "Task ID")
+            )
+            duplicate_tasks = sum(count > 1 for count in task_ids.values())
             items: list[dict[str, Any]] = []
+            missing_task_ids = sum(not _record_id(row, "Task ID") for row in task_rows)
+            missing_task_owners = 0
+            unknown_task_owners = 0
             needle = (query or "").casefold().strip()
             for row in task_rows:
                 task_id = _record_id(row, "Task ID")
-                if not task_id or task_id in seen:
+                if not task_id or task_ids[task_id] != 1:
                     continue
-                seen.add(task_id)
                 owner_id = _record_id(row, "Assigned To ID")
+                if not owner_id:
+                    missing_task_owners += 1
+                elif owner_id not in people:
+                    unknown_task_owners += 1
                 owner = people.get(owner_id, {})
                 raw_status = row.get("Status", "").strip()
                 state = _status(raw_status)
@@ -205,6 +222,13 @@ def create_admin_records_router() -> APIRouter:
                 "total": len(items),
                 "limit": limit,
                 "offset": offset,
+                "data_quality": {
+                    "duplicate_person_ids": duplicate_people,
+                    "duplicate_task_ids": duplicate_tasks,
+                    "tasks_missing_id": missing_task_ids,
+                    "tasks_missing_owner": missing_task_owners,
+                    "tasks_unknown_or_ambiguous_owner": unknown_task_owners,
+                },
                 "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
             })
         except (GoogleSheetsError, OSError, RuntimeError, ValueError):
@@ -281,10 +305,21 @@ def create_admin_records_router() -> APIRouter:
             people_rows, kpi_rows, log_rows = await asyncio.gather(
                 sheets.read_records(PEOPLE), sheets.read_records(KPIS), sheets.read_records(KPI_LOG)
             )
+            person_id_counts = Counter(
+                _record_id(row, "Person ID") for row in people_rows
+                if _record_id(row, "Person ID")
+            )
+            duplicate_people = sum(count > 1 for count in person_id_counts.values())
             people_by_id = {
                 _record_id(row, "Person ID"): row for row in people_rows
                 if _record_id(row, "Person ID")
+                and person_id_counts[_record_id(row, "Person ID")] == 1
             }
+            kpi_id_counts = Counter(
+                _record_id(row, "KPI ID") for row in kpi_rows
+                if _record_id(row, "KPI ID")
+            )
+            duplicate_kpis = sum(count > 1 for count in kpi_id_counts.values())
             latest: dict[str, dict[str, str]] = {}
             for row in log_rows:
                 key = _record_id(row, "KPI ID")
@@ -297,7 +332,7 @@ def create_admin_records_router() -> APIRouter:
             items = []
             for row in kpi_rows:
                 kpi_id = _record_id(row, "KPI ID")
-                if not kpi_id:
+                if not kpi_id or kpi_id_counts[kpi_id] != 1:
                     continue
                 active = row.get("Active?", "").strip().casefold() in {
                     "true", "yes", "1", "active", "enabled"
@@ -344,6 +379,11 @@ def create_admin_records_router() -> APIRouter:
                 "total": len(items),
                 "limit": limit,
                 "offset": offset,
+                "data_quality": {
+                    "duplicate_person_ids": duplicate_people,
+                    "duplicate_kpi_ids": duplicate_kpis,
+                    "kpis_missing_id": sum(not _record_id(row, "KPI ID") for row in kpi_rows),
+                },
                 "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
             })
         except (GoogleSheetsError, OSError, RuntimeError, ValueError):
