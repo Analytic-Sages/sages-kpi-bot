@@ -9,7 +9,9 @@ from app.config import Settings
 class FakeSheets:
     headers = {
         "People Directory": ["Person ID", "Full Name", "Team", "Status"],
-        "Master Task Tracker": ["Task ID", "Task Name", "Assigned To ID", "Status", "Due Date", "Last Updated"],
+        "Master Task Tracker": [
+            "Task ID", "Task Name", "Assigned To ID", "Status", "Due Date", "Last Updated"
+        ],
         "KPI Register": ["KPI ID", "KPI", "Owner Person ID", "Target", "Active?", "Direction"],
         "Weekly KPI Log": ["Week Start", "KPI ID", "Owner Person ID", "Target", "Actual"],
     }
@@ -19,17 +21,40 @@ class FakeSheets:
             {"Person ID": "p2", "Full Name": "Ben", "Team": "Engineering", "Status": "Active"},
         ],
         "Master Task Tracker": [
-            {"Task ID": "t1", "Task Name": "Write report", "Assigned To ID": "p1", "Status": "In Progress", "Due Date": "2026-10-01", "Last Updated": "2026-10-02"},
-            {"Task ID": "t2", "Task Name": "Ship API", "Assigned To ID": "p2", "Status": "Completed", "Due Date": "2026-10-20", "Last Updated": "2026-10-16"},
-            {"Task ID": "t3", "Task Name": "No owner", "Assigned To ID": "", "Status": "Blocked", "Due Date": ""},
+            {
+                "Task ID": "t1", "Task Name": "Write report", "Assigned To ID": "p1",
+                "Status": "In Progress", "Due Date": "2026-10-01",
+                "Last Updated": "2026-10-02",
+            },
+            {
+                "Task ID": "t2", "Task Name": "Ship API", "Assigned To ID": "p2",
+                "Status": "Completed", "Due Date": "2026-10-20",
+                "Last Updated": "2026-10-16",
+            },
+            {
+                "Task ID": "t3", "Task Name": "No owner", "Assigned To ID": "",
+                "Status": "Blocked", "Due Date": "",
+            },
         ],
         "KPI Register": [
-            {"KPI ID": "k1", "KPI": "Reports", "Owner Person ID": "p1", "Target": "10", "Active?": "Yes", "Direction": "higher"},
-            {"KPI ID": "k2", "KPI": "Pipeline", "Owner Person ID": "p2", "Target": "5", "Active?": "No", "Direction": ""},
+            {
+                "KPI ID": "k1", "KPI": "Reports", "Owner Person ID": "p1",
+                "Target": "10", "Active?": "Yes", "Direction": "higher",
+            },
+            {
+                "KPI ID": "k2", "KPI": "Pipeline", "Owner Person ID": "p2",
+                "Target": "5", "Active?": "No", "Direction": "",
+            },
         ],
         "Weekly KPI Log": [
-            {"Week Start": "2026-10-12", "KPI ID": "k1", "Owner Person ID": "p1", "Target": "10", "Actual": "8"},
-            {"Week Start": "2026-10-05", "KPI ID": "k1", "Owner Person ID": "p1", "Target": "10", "Actual": "7"},
+            {
+                "Week Start": "2026-10-12", "KPI ID": "k1", "Owner Person ID": "p1",
+                "Target": "10", "Actual": "8",
+            },
+            {
+                "Week Start": "2026-10-05", "KPI ID": "k1", "Owner Person ID": "p1",
+                "Target": "10", "Actual": "7",
+            },
         ],
     }
 
