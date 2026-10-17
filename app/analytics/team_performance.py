@@ -211,9 +211,9 @@ def build_team_performance(
         # reporting anchor. Undated tasks remain in current workload/status totals.
         anchor = due or updated
         in_window = bool(anchor and start_date <= anchor <= end_date)
-        if anchor and not in_window and not is_overdue:
-            continue
         stale_update = bool(updated and (today - updated).days > 7 and state != "completed")
+        if anchor and not in_window and not (is_overdue or stale_update):
+            continue
         task = {
             "id": task_id or f"row-{len(tasks) + 1}",
             "name": _get(row, "task_name") or task_id or "Untitled task",
