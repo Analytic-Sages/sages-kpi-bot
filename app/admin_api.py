@@ -96,9 +96,9 @@ def create_admin_api_router() -> APIRouter:
                     "task_and_kpi_browsing": True,
                     "task_and_kpi_editing": False,
                     "task_and_kpi_reason": (
-                        "Read-only task/KPI records and performance aggregates are available. Editing remains "
-                        "disabled until editable fields, formula ownership, and status transitions "
-                        "are explicitly approved."
+                        "Read-only task/KPI records and performance aggregates are available. "
+                        "Editing remains disabled until editable fields, formula ownership, and "
+                        "status transitions are explicitly approved."
                     ),
                 },
                 "audit_store": {
