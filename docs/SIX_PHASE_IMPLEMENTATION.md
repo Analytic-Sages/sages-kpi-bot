@@ -1,0 +1,91 @@
+# Polaris — Six-Phase Implementation Plan
+
+This plan continues from the accepted read-only analytics baseline. Google Sheets remains the source of truth. Every phase must pass automated tests and its acceptance gate before any later phase is activated.
+
+## Non-negotiable safety state
+
+Keep these values in Render until a separate, explicit production approval:
+
+```dotenv
+DRY_RUN=true
+ENABLE_TEAM_WRITES=false
+ENABLE_SCHEDULED_WORKFLOWS=false
+ENABLE_ANALYTICS=false
+ENABLE_WEBHOOKS=false
+ENABLE_SAFE_TELEGRAM_REPLIES=false
+ENABLE_DRY_RUN_TEAM_REPLIES=false
+ENABLE_TEAM_WORKFLOWS=false
+```
+
+No production spreadsheet edits or live messages are used as smoke tests. Secrets stay in the hosting secret store. Every protected API must authenticate and authorize on the server, return `Cache-Control: no-store`, and fail closed on missing/ambiguous source data.
+
+## Phase 1 — Operational record centre
+
+**In progress in this branch.**
+
+- [x] Authenticated, paginated, read-only task list API with status/team/person/query/overdue filters.
+- [x] Authenticated task detail API that rejects missing or ambiguous IDs.
+- [x] Authenticated, paginated, read-only KPI register API with owner/team filters and latest recorded observation.
+- [x] Same-origin task and KPI tables with loading/error/empty states and pagination.
+- [ ] CI passes on the exact PR head.
+- [ ] Browser smoke test on the deployed control centre.
+
+**Exit gate:** the dashboard reads live records without writes, unauthorized requests return 401, and source failures return sanitized 503 responses.
+
+## Phase 2 — Audited mutation and approval workflow
+
+- Add typed request models for task and KPI changes.
+- Define per-worksheet allowlists only for explicitly approved editable columns; formula-owned columns are never writable.
+- Validate stable IDs, owner references, permitted status transitions, field values, and expected-value snapshots.
+- Route all changes through `SafeSheetMutationService`; require actor identity, correlation/request ID, audit intent/outcome, and read-after-write verification.
+- Add preview/confirmation UX, conflict refresh, uncertain-outcome state, and idempotent request handling.
+- Keep the production write gate off; test against a controlled workbook or explicitly approved pilot rows.
+
+**Exit gate:** tests prove invalid, unauthorized, duplicate, stale, and uncertain writes do not produce false success; formula and neighboring cells are preserved; an owner explicitly approves the pilot.
+
+## Phase 3 — Accountability and reminder engine
+
+- Separate reminder selection, message composition, eligibility, and delivery.
+- Persist delivery receipts and cooldown state; deduplicate across retries/restarts.
+- Suppress reminders for completed/cancelled tasks, inactive members, ambiguous ownership, missing recipients, and malformed due dates.
+- Produce recipient/message previews and dry-run delivery reports first.
+- Add per-channel delivery outcomes and safe retry rules; do not retry an uncertain send blindly.
+- Keep Telegram delivery and scheduled workflow flags off until a staged recipient audit passes.
+
+**Exit gate:** deterministic tests cover time zones, duplicate schedules, cooldowns, missing recipients, delivery failures, and restart recovery; a human approves the preview.
+
+## Phase 4 — Google Workspace and email integrations
+
+- Add Gmail only with least-privilege scopes and an approved sender identity.
+- Add permission-aware Drive retrieval using the connected user's actual authorization; no content is returned after denied or revoked access.
+- Store tokens only in the host secret store and redact credentials/identifiers from logs.
+- Audit requests and delivery outcomes without logging document contents or secrets.
+- Keep email, Drive retrieval, and Telegram independently gated.
+
+**Exit gate:** authorization, revocation, quota/rate-limit, failure, and audit tests pass independently for each integration.
+
+## Phase 5 — Growth intelligence and bounded AI assistance
+
+- Treat existing GA4/YouTube integrations as separate from operational task/KPI data.
+- Add source freshness, ingestion health, and metric provenance before presenting growth summaries.
+- Start AI with read-only summaries grounded in authorized source data.
+- Treat retrieved documents and messages as untrusted content; AI cannot grant access or bypass policy.
+- Any proposed operational change must return to the normal validation, preview, approval, and audited mutation path.
+
+**Exit gate:** source attribution, permission enforcement, stale-data warnings, and no-side-effect tests pass; no AI output directly triggers a write or send.
+
+## Phase 6 — Production readiness and controlled rollout
+
+- Verify exact deployed commit, CI, Render health, live Sheets preflight, approved admin/non-admin access, and integration health.
+- Confirm persistent storage, backup/restore, process count, scheduler coordination, and restart behavior.
+- Review logs, error alerts, secret rotation, rate limits, rollback steps, and incident ownership.
+- Enable one capability at a time with a named approver and a defined observation window.
+- Record rollout evidence and immediately revert the individual gate if integrity, authorization, or delivery checks fail.
+
+**Exit gate:** all required operational evidence is recorded. Polaris must not be described as production-ready while any mandatory gate remains open.
+
+## Current implementation status
+
+- Read-only admin sign-in, overview, audit history, and team performance analytics are merged on `main`.
+- This branch adds the first task/KPI record-centre increment; CI and deployed browser verification remain to be observed.
+- No production write or notification flags are changed by this plan.
