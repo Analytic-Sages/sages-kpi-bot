@@ -17,6 +17,10 @@ Google Sheets remains the operational source of truth. This document translates 
 - Never report a mutation as applied until the service reads it back and verifies the expected result.
 - On timeout or an uncertain outcome, do not blindly retry; inspect the request/audit state first.
 
+## Read-only workbook audit implementation
+
+The read-only audit is implemented in `app/change_requests/workbook_audit.py` and is included in `app.preflight.sheet_findings`. The Sheets client reads formula-visible values with the FORMULA render option; the audit reports only worksheet/field names, formula counts, and severity. It never returns cell contents or formula expressions in the preflight report. Missing proposed policy headers or formulas in proposed writable fields are blockers; missing formula evidence is a warning and does not prove a field is safe. The audit is not an approval to write, and must be run in the configured deployment before a human reviews the live workbook and protected ranges.
+
 ## 1. Worksheet and field policy
 
 ### Tier 0 — never writable by the bot

@@ -159,6 +159,39 @@ class GoogleSheetsClient:
                 raise
             raise GoogleSheetsError(f"Invalid worksheet schema: {worksheet_name}") from exc
 
+    async def read_formula_rows(self, worksheet_name: str) -> list[dict[str, str]]:
+        """Read formula-visible cells for a read-only integrity audit.
+
+        Formula strings are consumed by the caller and must never be included in public
+        responses or logs. This method does not perform writes.
+        """
+        worksheet = self._worksheet(worksheet_name)
+        try:
+            headers = await self.read_headers(worksheet_name)
+            values = await self._api_call(
+                lambda: worksheet.get_all_values(value_render_option="FORMULA"),
+                context=f"Unable to read formula-visible worksheet: {worksheet_name}",
+            )
+            if not values:
+                return []
+            rows: list[dict[str, str]] = []
+            for raw_row in values[1:]:
+                cells = list(raw_row[: len(headers)])
+                cells.extend([""] * (len(headers) - len(cells)))
+                record = {
+                    header: str(value).strip()
+                    for header, value in zip(headers, cells, strict=True)
+                }
+                if any(record.values()):
+                    rows.append(record)
+            return rows
+        except (GoogleSheetsError, ValueError) as exc:
+            if isinstance(exc, GoogleSheetsError):
+                raise
+            raise GoogleSheetsError(
+                f"Invalid formula-visible worksheet schema: {worksheet_name}"
+            ) from exc
+
     async def read_records(self, worksheet_name: str) -> list[dict[str, str]]:
         """Return worksheet records as dictionaries keyed by their header names."""
         return [row.values for row in await self.read_rows(worksheet_name)]

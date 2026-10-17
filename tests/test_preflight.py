@@ -81,14 +81,29 @@ def test_preflight_flags_incomplete_oauth_configuration():
 
 
 def test_sheet_findings_accepts_header_only_worksheets():
+    from app.change_requests.policy import FIELD_TIERS
+    from app.change_requests.workbook_audit import (
+        EXTRA_REQUIRED_FIELDS,
+        PROTECTED_FORMULA_FIELDS,
+        RECORD_KEYS,
+    )
+
     headers_by_sheet = {name: set(headers) for name, headers in CORE_SHEETS.items()}
     for name, headers in ACCOUNTABILITY_SAFETY_HEADERS.items():
         headers_by_sheet[name].update(headers)
+    for name, fields in FIELD_TIERS.items():
+        headers_by_sheet[name].update(fields)
+        headers_by_sheet[name].update(RECORD_KEYS[name])
+        headers_by_sheet[name].update(EXTRA_REQUIRED_FIELDS[name])
+        headers_by_sheet[name].update(PROTECTED_FORMULA_FIELDS.get(name, frozenset()))
 
     class HeaderOnlyClient:
         async def read_headers(self, worksheet_name):
             # Models a worksheet that has a valid row 1 and no data rows.
             return sorted(headers_by_sheet[worksheet_name])
+
+        async def read_formula_rows(self, worksheet_name):
+            return []
 
     findings = asyncio.run(sheet_findings(HeaderOnlyClient()))
     weekly_log = next(f for f in findings if f.component == "Weekly KPI Log")
