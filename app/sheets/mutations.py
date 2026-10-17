@@ -96,12 +96,14 @@ class SafeSheetMutationService:
         audit: AuditRecorder,
         dry_run: bool = True,
         writes_enabled: bool = False,
+        bot_writes_enabled: bool = False,
     ) -> None:
         self.sheets = sheets
         self.policies = policies
         self.audit = audit
         self.dry_run = dry_run
         self.writes_enabled = writes_enabled
+        self.bot_writes_enabled = bot_writes_enabled
         self._record_locks: dict[tuple[str, str], asyncio.Lock] = {}
 
     async def mutate(
@@ -189,7 +191,9 @@ class SafeSheetMutationService:
                 name: {"before": before[name], "after": normalized_changes[name]}
                 for name in normalized_changes
             }
-            enabled = self.writes_enabled and not self.dry_run
+            enabled = (
+                self.bot_writes_enabled and self.writes_enabled and not self.dry_run
+            )
             if not enabled:
                 await self._audit(
                     request=request,
