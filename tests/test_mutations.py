@@ -166,7 +166,13 @@ async def test_mutation_live_path_verifies_and_audits(tmp_path):
 @pytest.mark.asyncio
 async def test_mutation_uncertain_write_is_not_reported_as_success(tmp_path):
     audit = RecordingAudit()
-    service, sheets, _ = make_service(tmp_path, dry_run=False, writes_enabled=True, audit=audit)
+    service, sheets, _ = make_service(
+        tmp_path,
+        dry_run=False,
+        writes_enabled=True,
+        bot_writes_enabled=True,
+        audit=audit,
+    )
     async def uncertain(*args, **kwargs):
         raise RuntimeError("connection lost after request")
     sheets.update_record = uncertain
