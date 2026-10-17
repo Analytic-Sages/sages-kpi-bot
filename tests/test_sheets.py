@@ -37,6 +37,7 @@ def test_rows_are_keyed_by_headers_and_keep_actual_sheet_row_number():
 
 def make_client(grid):
     worksheet = MagicMock()
+    worksheet.row_values.return_value = grid[0] if grid else []
     worksheet.get_all_values.return_value = grid
     spreadsheet = MagicMock()
     spreadsheet.worksheet.return_value = worksheet
