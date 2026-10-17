@@ -23,10 +23,10 @@
 
   async function requestJson(url, options = {}) {
     const response = await fetch(url, {
+      ...options,
       credentials: "same-origin",
       cache: "no-store",
       headers: { Accept: "application/json", ...(options.headers || {}) },
-      ...options,
     });
     if (response.status === 401) {
       state.csrf = null;
