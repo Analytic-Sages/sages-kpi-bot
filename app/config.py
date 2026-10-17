@@ -40,6 +40,8 @@ class Settings(BaseSettings):
     enable_team_workflows: bool = False
     # Separately gate Google Sheets mutations from read-only team commands.
     enable_team_writes: bool = False
+    # Independent kill switch for all bot-originated spreadsheet mutations.
+    enable_bot_writes: bool = False
     enable_scheduled_workflows: bool = False
     enable_analytics: bool = False
     enable_webhooks: bool = False
