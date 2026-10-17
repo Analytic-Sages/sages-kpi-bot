@@ -69,7 +69,7 @@ def test_admin_overview_reports_safe_status_without_secrets():
     assert body["integrations"]["google_sheets"]["status"] == "configured_not_checked"
     assert body["safety"]["team_writes_enabled"] is False
     assert body["safety"]["live_sheet_mutations_available"] is False
-    assert body["capabilities"]["task_and_kpi_browsing"] is False
+    assert body["capabilities"]["task_and_kpi_browsing"] is True
     assert body["capabilities"]["task_and_kpi_editing"] is False
     assert "client-secret" not in response.text
     assert "sheet-id" not in response.text
