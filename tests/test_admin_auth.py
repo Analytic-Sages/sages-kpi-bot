@@ -1,7 +1,7 @@
-import app.admin_auth as admin_auth
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+import app.admin_auth as admin_auth
 from app.admin_auth import (
     FLOW_COOKIE,
     SESSION_COOKIE,
