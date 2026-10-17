@@ -41,7 +41,7 @@ Implementation contract: [`PHASE_2_FIELD_POLICY_AND_APPROVALS.md`](PHASE_2_FIELD
 - [x] Add a durable SQLite change-request state store for DRAFT, confirmation, approval, applied, rejected, expired, conflict, failed, and cancelled states.
 - [x] Enforce requester identity, separate Tier 2 approver identity, no self-approval, 10-minute confirmation expiry, and 48-hour approval expiry in the state store.
 - [x] Persist append-only request-transition events and deduplicate source messages / request IDs.
-- [ ] Add typed request models and policy validation for task and KPI changes.
+- [x] Add typed change proposals and fail-closed pure policy validation for task/KPI changes (dry-run model only; not wired to Sheets or user-facing handlers).
 - [ ] Verify the live workbook headers and formula ownership before enabling any worksheet allowlist.
 - Validate stable IDs, owner references, permitted status transitions, field values, and expected-value snapshots.
 - Route all changes through `SafeSheetMutationService`; require actor identity, correlation/request ID, audit intent/outcome, and read-after-write verification.
@@ -96,5 +96,5 @@ Implementation contract: [`PHASE_2_FIELD_POLICY_AND_APPROVALS.md`](PHASE_2_FIELD
 - Read-only admin sign-in, overview, audit history, and team performance analytics are merged on `main`.
 - The task/KPI record centre is merged on `main`; CI passed on the merge commit and the operator confirmed the deployed read-only Control Centre.
 - PR #36 merged: Phase 2 requirements contract and independent `ENABLE_BOT_WRITES=false` gate are in `main`.
-- Current branch increment adds the durable request state machine only; it does not expose command handlers or perform Sheets writes. All production write and notification flags remain disabled.
+- PR #37 merged: durable SQLite change-request state machine. The current branch adds typed proposals and pure policy validation with stale-row fingerprints, formula-field rejection, field/tier allowlists, status/date/numeric checks, and identity/owner checks. It does not expose command handlers or perform Sheets writes. Live workbook schema and formula ownership remain unverified; all production write and notification flags remain disabled.
 - Live mutation policies, workbook schema, formula ownership, protected ranges, and bot identity/approval routing remain unverified until explicitly checked.
