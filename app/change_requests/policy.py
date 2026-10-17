@@ -214,6 +214,11 @@ def validate_proposal(
         )
 
     required_tier = max(policy[field] for field in proposal.changes)
+    if (
+        proposal.record_kind == "task"
+        and proposal.changes.get("Status", "").strip() == "Completed"
+    ):
+        required_tier = 2
     if proposal.tier != required_tier:
         raise ChangePolicyError(f"These fields require Tier {required_tier}")
 
