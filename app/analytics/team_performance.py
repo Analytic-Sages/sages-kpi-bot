@@ -5,10 +5,10 @@ variations, but the service never writes to Sheets and never fabricates missing 
 """
 from __future__ import annotations
 
+import re
 from collections import Counter, defaultdict
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
-import re
 
 
 PEOPLE_SHEET = "People Directory"
