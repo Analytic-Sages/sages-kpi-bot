@@ -1,5 +1,6 @@
 import pytest
 
+from app.sheets.client import GoogleSheetsError
 from app.change_requests.policy import (
     TASK_WORKSHEET,
     FIELD_TIERS,
@@ -123,7 +124,7 @@ async def test_formula_in_protected_column_is_reported_without_exposing_formula(
 async def test_unknown_worksheet_schema_fails_closed():
     class BrokenClient:
         async def read_headers(self, worksheet_name):
-            raise RuntimeError("private workbook detail")
+            raise GoogleSheetsError("private workbook detail")
 
         async def read_formula_rows(self, worksheet_name):
             raise AssertionError("must not continue after header read failure")
