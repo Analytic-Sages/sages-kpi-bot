@@ -341,12 +341,15 @@ def build_team_performance(
     for offset in range(5, -1, -1):
         week_start = end_date - timedelta(days=end_date.weekday()) - timedelta(days=7 * offset)
         week_end = week_start + timedelta(days=6)
-        matching = [item for item in task_rows if (_date(_get(item, "task_due")) or _date(_get(item, "task_updated"))) and
-                    week_start <= (_date(_get(item, "task_due")) or _date(_get(item, "task_updated"))) <= week_end]
+        matching = []
+        for item in tasks:
+            anchor = _date(item["due_date"]) or _date(item["updated_date"])
+            if anchor and week_start <= anchor <= week_end:
+                matching.append(item)
         trend.append({
             "week_start": week_start.isoformat(),
             "tasks_with_dates": len(matching),
-            "completed": sum(_status(_get(item, "task_status")) == "completed" for item in matching),
+            "completed": sum(item["status"] == "completed" for item in matching),
         })
 
     return {
