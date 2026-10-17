@@ -6,10 +6,10 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from app.change_requests.policy import (
+    FIELD_TIERS,
     KPI_WORKSHEET,
     TASK_WORKSHEET,
     WEEKLY_KPI_WORKSHEET,
-    FIELD_TIERS,
 )
 from app.sheets.client import GoogleSheetsError
 from app.sheets.schema import SheetSchemaError, normalize_headers
@@ -18,7 +18,14 @@ from app.sheets.schema import SheetSchemaError, normalize_headers
 # This list is a proposed contract, not proof of the live workbook's configuration.
 PROTECTED_FORMULA_FIELDS: dict[str, frozenset[str]] = {
     TASK_WORKSHEET: frozenset(
-        {"Status", "Assigned To ID", "Days To Deadline", "Remind Now?", "Escalate?", "Achievement %"}
+        {
+            "Status",
+            "Assigned To ID",
+            "Days To Deadline",
+            "Remind Now?",
+            "Escalate?",
+            "Achievement %",
+        }
     ),
     KPI_WORKSHEET: frozenset({"Achievement %"}),
     WEEKLY_KPI_WORKSHEET: frozenset({"Target", "Achievement %"}),
