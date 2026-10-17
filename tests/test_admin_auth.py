@@ -110,7 +110,7 @@ def test_successful_oidc_callback_redirects_to_control_centre(monkeypatch):
             "created": 1,
         }
     )
-    client.cookies.set(FLOW_COOKIE, flow, path="/auth", secure=True)
+    client.cookies.set(FLOW_COOKIE, flow, path="/auth")
 
     class FakeTokenResponse:
         def raise_for_status(self):
