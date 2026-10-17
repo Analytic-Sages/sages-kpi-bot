@@ -109,7 +109,8 @@ async def change_policy_findings(client: FormulaAuditClient) -> list[WorkbookAud
                     WorkbookAuditFinding(
                         "PASS",
                         f"{worksheet} / formula ownership",
-                        f"{field}: formula detected in {count} row(s); keep this field non-writable.",
+                        f"{field}: formula detected in {count} row(s); "
+                        "keep this field non-writable.",
                     )
                 )
             else:
@@ -117,7 +118,8 @@ async def change_policy_findings(client: FormulaAuditClient) -> list[WorkbookAud
                     WorkbookAuditFinding(
                         "WARNING",
                         f"{worksheet} / formula ownership",
-                        f"{field}: no formula detected in inspected rows; ownership still requires manual confirmation.",
+                        f"{field}: no formula detected in inspected rows; "
+                        "ownership still requires manual confirmation.",
                     )
                 )
 
@@ -145,7 +147,8 @@ async def change_policy_findings(client: FormulaAuditClient) -> list[WorkbookAud
         WorkbookAuditFinding(
             "WARNING",
             "Mutation policy",
-            "This audit is read-only. Passing checks does not enable writes or replace owner approval.",
+            "This audit is read-only. Passing checks does not enable writes "
+            "or replace owner approval.",
         )
     )
     return findings
