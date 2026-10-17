@@ -1,9 +1,7 @@
 import pytest
 
 from app.change_requests.policy import (
-    KPI_WORKSHEET,
     TASK_WORKSHEET,
-    WEEKLY_KPI_WORKSHEET,
     FIELD_TIERS,
 )
 from app.change_requests.workbook_audit import (
