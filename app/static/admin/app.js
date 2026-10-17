@@ -457,10 +457,10 @@
     byId("tasks-error").hidden = true;
   }
 
-  function renderKpis(data) {
-    const body = byId("kpis-body");
+  function renderKpiRecords(data) {
+    const body = byId("kpi-records-body");
     body.replaceChildren();
-    if (!data.items.length) renderRecordEmpty("kpis-body", 7, "No KPIs match these filters.");
+    if (!data.items.length) renderRecordEmpty("kpi-records-body", 7, "No KPIs match these filters.");
     for (const item of data.items) {
       const row = element("tr");
       row.append(
@@ -520,7 +520,7 @@
     try {
       const data = await requestJson("/api/v1/admin/kpis?" + params.toString());
       if (requestId !== state.kpiRequest) return;
-      renderKpis(data);
+      renderKpiRecords(data);
     } catch (error) {
       if (dashboard.hidden || requestId !== state.kpiRequest) return;
       byId("kpis-error").textContent = error.message || "KPI data could not be loaded.";
@@ -528,7 +528,7 @@
       byId("kpis-count").textContent = "Data unavailable";
       byId("kpis-previous").disabled = true;
       byId("kpis-next").disabled = true;
-      renderRecordEmpty("kpis-body", 7, "KPI data is unavailable. Try refreshing.");
+      renderRecordEmpty("kpi-records-body", 7, "KPI data is unavailable. Try refreshing.");
       byId("kpis-page-count").textContent = "Unavailable";
     }
   }
