@@ -105,7 +105,7 @@ def _status(value: str) -> str:
 
 
 def _active(value: str) -> bool:
-    return _key(value) not in {"inactive", "disabled", "left", "terminated", "false", "no", "0"}
+    return _key(value) in {"active", "yes", "true", "1", "enabled", "y", "current"}
 
 
 def _ratio(numerator: int | float, denominator: int | float) -> float | None:
@@ -144,11 +144,19 @@ def build_team_performance(
         if person_id in people:
             quality["duplicate_person_ids"] += 1
             continue
+        status = _get(row, "person_status")
+        if not status:
+            quality["people_missing_status"] += 1
+        elif _key(status) not in {
+            "active", "yes", "true", "1", "enabled", "y", "current",
+            "inactive", "disabled", "left", "terminated", "false", "no", "0", "n",
+        }:
+            quality["people_unknown_status"] += 1
         people[person_id] = {
             "id": person_id,
             "name": name or person_id,
             "team": _get(row, "team") or "Unassigned team",
-            "status": _get(row, "person_status") or "Unknown",
+            "status": status or "Unknown",
         }
 
     active_people = {
@@ -173,6 +181,10 @@ def build_team_performance(
         owner_id = _get(row, "task_owner")
         status_raw = _get(row, "task_status")
         state = _status(status_raw)
+        if not status_raw:
+            quality["tasks_missing_status"] += 1
+        elif state == "other":
+            quality["tasks_unrecognized_status"] += 1
         due = _date(_get(row, "task_due"))
         updated = _date(_get(row, "task_updated"))
         if not task_id:
