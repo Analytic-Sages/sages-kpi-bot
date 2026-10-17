@@ -18,7 +18,7 @@ from app.sheets.schema import SheetSchemaError, normalize_headers
 # This list is a proposed contract, not proof of the live workbook's configuration.
 PROTECTED_FORMULA_FIELDS: dict[str, frozenset[str]] = {
     TASK_WORKSHEET: frozenset(
-        {"Assigned To ID", "Days To Deadline", "Remind Now?", "Escalate?", "Achievement %"}
+        {"Status", "Assigned To ID", "Days To Deadline", "Remind Now?", "Escalate?", "Achievement %"}
     ),
     KPI_WORKSHEET: frozenset({"Achievement %"}),
     WEEKLY_KPI_WORKSHEET: frozenset({"Target", "Achievement %"}),
