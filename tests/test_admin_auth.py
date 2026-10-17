@@ -1,7 +1,9 @@
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+import app.admin_auth as admin_auth
 from app.admin_auth import (
+    FLOW_COOKIE,
     SESSION_COOKIE,
     _serializer,
     create_admin_auth_router,
@@ -94,3 +96,61 @@ def test_login_uses_state_nonce_and_pkce_and_sets_flow_cookie():
     assert "polaris_oidc_flow=" in response.headers["set-cookie"]
     assert "httponly" in response.headers["set-cookie"].lower()
     assert "secure" in response.headers["set-cookie"].lower()
+
+
+
+def test_successful_oidc_callback_redirects_to_control_centre(monkeypatch):
+    settings = configured_settings()
+    client = client_for(settings)
+    flow = _serializer(settings, "polaris-admin-oidc-flow-v1").dumps(
+        {
+            "state": "state-value",
+            "nonce": "nonce-value",
+            "verifier": "pkce-verifier",
+            "created": 1,
+        }
+    )
+    client.cookies.set(FLOW_COOKIE, flow, path="/auth")
+
+    class FakeTokenResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"id_token": "fake-id-token"}
+
+    class FakeAsyncClient:
+        def __init__(self, timeout):
+            self.timeout = timeout
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, traceback):
+            return None
+
+        async def post(self, url, data):
+            assert url == admin_auth.GOOGLE_TOKEN_ENDPOINT
+            assert data["code"] == "authorization-code"
+            assert data["code_verifier"] == "pkce-verifier"
+            return FakeTokenResponse()
+
+    monkeypatch.setattr(admin_auth.httpx, "AsyncClient", FakeAsyncClient)
+    monkeypatch.setattr(
+        admin_auth.id_token,
+        "verify_oauth2_token",
+        lambda raw_token, request, audience: {
+            "iss": "https://accounts.google.com",
+            "nonce": "nonce-value",
+            "email": "admin@example.com",
+            "email_verified": True,
+        },
+    )
+
+    response = client.get(
+        "/auth/callback?code=authorization-code&state=state-value",
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert response.headers["location"] == "/control/"
+    assert SESSION_COOKIE in response.headers.get("set-cookie", "")
