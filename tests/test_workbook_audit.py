@@ -1,6 +1,5 @@
 import pytest
 
-from app.sheets.client import GoogleSheetsError
 from app.change_requests.policy import (
     FIELD_TIERS,
     TASK_WORKSHEET,
@@ -11,6 +10,7 @@ from app.change_requests.workbook_audit import (
     RECORD_KEYS,
     change_policy_findings,
 )
+from app.sheets.client import GoogleSheetsError
 
 
 class FakeFormulaClient:
