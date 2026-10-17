@@ -167,11 +167,24 @@ class GoogleSheetsClient:
         """
         worksheet = self._worksheet(worksheet_name)
         try:
+            headers = await self.read_headers(worksheet_name)
             values = await self._api_call(
                 lambda: worksheet.get_all_values(value_render_option="FORMULA"),
                 context=f"Unable to read formula-visible worksheet: {worksheet_name}",
             )
-            return [row.values for row in rows_from_values(values)]
+            if not values:
+                return []
+            rows: list[dict[str, str]] = []
+            for raw_row in values[1:]:
+                cells = list(raw_row[: len(headers)])
+                cells.extend([""] * (len(headers) - len(cells)))
+                record = {
+                    header: str(value).strip()
+                    for header, value in zip(headers, cells, strict=True)
+                }
+                if any(record.values()):
+                    rows.append(record)
+            return rows
         except (GoogleSheetsError, ValueError) as exc:
             if isinstance(exc, GoogleSheetsError):
                 raise
