@@ -7,6 +7,17 @@ from app.config import Settings
 
 
 class FakeSheets:
+    async def read_headers(self, worksheet_name):
+        headers = {
+            "People Directory": ["Person ID", "Full Name", "Team", "Status"],
+            "Master Task Tracker": ["Task ID", "Task Name", "Assigned To ID", "Status"],
+            "KPI Register": [
+                "KPI ID", "Team", "Role", "KPI", "Owner Person ID", "Target", "Active?"
+            ],
+            "Weekly KPI Log": ["Week Start", "KPI ID", "Owner Person ID", "Target", "Actual"],
+        }
+        return headers[worksheet_name]
+
     async def read_records(self, worksheet_name):
         data = {
             "People Directory": [
