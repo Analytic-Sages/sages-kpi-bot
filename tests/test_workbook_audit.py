@@ -2,8 +2,8 @@ import pytest
 
 from app.sheets.client import GoogleSheetsError
 from app.change_requests.policy import (
-    TASK_WORKSHEET,
     FIELD_TIERS,
+    TASK_WORKSHEET,
 )
 from app.change_requests.workbook_audit import (
     EXTRA_REQUIRED_FIELDS,
