@@ -26,7 +26,10 @@ ALIASES = {
     "task_owner": ("Assigned To ID", "Owner Person ID", "Assignee ID", "Assigned To", "Owner"),
     "task_status": ("Status", "Task Status", "State"),
     "task_due": ("Due Date", "Deadline", "Due", "Target Date", "Completion Deadline", "Due At"),
-    "task_updated": ("Last Updated", "Updated At", "Last Update", "Updated On", "Last Check-in", "Last Check In"),
+    "task_updated": (
+        "Last Updated", "Updated At", "Last Update", "Updated On",
+        "Last Check-in", "Last Check In",
+    ),
     "task_blocker": ("Blocker", "Blockers", "Blocker Description", "Blocked Reason", "Blocker Status"),
     "kpi_id": ("KPI ID", "Metric ID"),
     "kpi_name": ("KPI", "KPI Name", "Metric", "Metric Name"),
@@ -59,7 +62,11 @@ def _date(value: Any) -> date | None:
             return datetime.fromisoformat(candidate.replace("Z", "+00:00")).date()
         except ValueError:
             pass
-    for fmt in ("%d/%m/%Y", "%m/%d/%Y", "%d-%m-%Y", "%Y/%m/%d", "%b %d, %Y", "%d %b %Y"):
+    formats = (
+        "%d/%m/%Y", "%m/%d/%Y", "%d-%m-%Y",
+        "%Y/%m/%d", "%b %d, %Y", "%d %b %Y",
+    )
+    for fmt in formats:
         try:
             return datetime.strptime(text, fmt).date()
         except ValueError:
@@ -147,8 +154,11 @@ def build_team_performance(
         active_people = {key: value for key, value in active_people.items()
                          if value["team"].casefold() == team_filter}
     if person_filter:
-        active_people = {key: value for key, value in active_people.items()
-                         if key == person_filter or value["name"].casefold() == person_filter.casefold()}
+        active_people = {
+            key: value
+            for key, value in active_people.items()
+            if key == person_filter or value["name"].casefold() == person_filter.casefold()
+        }
     allowed_ids = set(active_people)
 
     tasks: list[dict[str, Any]] = []
@@ -164,6 +174,7 @@ def build_team_performance(
             quality["tasks_missing_id"] += 1
         elif task_id in seen_task_ids:
             quality["duplicate_task_ids"] += 1
+            continue
         else:
             seen_task_ids.add(task_id)
         if not owner_id:
@@ -272,11 +283,13 @@ def build_team_performance(
         if kpi_id in register:
             quality["duplicate_kpi_ids"] += 1
             continue
+        kpi_owner = _get(row, "kpi_owner")
         register[kpi_id] = {
             "id": kpi_id,
             "name": _get(row, "kpi_name") or kpi_id,
-            "owner_id": _get(row, "kpi_owner"),
-            "team": _get(row, "team") or people.get(_get(row, "kpi_owner"), {}).get("team", "Unassigned team"),
+            "owner_id": kpi_owner,
+            "team": _get(row, "team")
+            or people.get(kpi_owner, {}).get("team", "Unassigned team"),
             "target": _number(_get(row, "kpi_target")),
             "direction": _get(row, "kpi_direction").casefold(),
         }
@@ -284,7 +297,6 @@ def build_team_performance(
             quality["kpis_unknown_owner"] += 1
 
     kpi_results = []
-    kpi_weeks = set()
     for row in kpi_log_rows:
         kpi_id = _get(row, "kpi_id")
         item = register.get(kpi_id)
@@ -315,7 +327,6 @@ def build_team_performance(
             elif target > 0:
                 attainment = round(actual / target * 100, 1)
                 below_target = actual < target
-        kpi_weeks.add(week.isoformat() if week else "undated")
         kpi_results.append({
             "kpi_id": kpi_id,
             "kpi": item["name"],
@@ -329,14 +340,19 @@ def build_team_performance(
             "below_target": below_target,
             "direction_known": bool(direction),
         })
-    kpi_results.sort(key=lambda item: (item["below_target"] is not True, item["attainment"] if item["attainment"] is not None else float("inf"), item["owner_name"].casefold()))
+    kpi_results.sort(
+        key=lambda item: (
+            item["below_target"] is not True,
+            item["attainment"] if item["attainment"] is not None else float("inf"),
+            item["owner_name"].casefold(),
+        )
+    )
 
     completed = sum(item["status"] == "completed" for item in tasks)
     overdue = sum(item["overdue"] for item in tasks)
     blocked = sum(item["blocked"] for item in tasks)
     due_known = sum(item["has_due_date"] for item in tasks)
     followups = [item for item in tasks if item["overdue"] or item["blocked"] or item["stale_update"]]
-    kpi_measurable = [item for item in kpi_results if item["below_target"] is not None]
     trend = []
     for offset in range(5, -1, -1):
         week_start = end_date - timedelta(days=end_date.weekday()) - timedelta(days=7 * offset)
@@ -354,7 +370,14 @@ def build_team_performance(
 
     return {
         "generated_at": datetime.now(UTC).replace(microsecond=0).isoformat(),
-        "period": {"start": start_date.isoformat(), "end": end_date.isoformat(), "basis": "task due date when available; otherwise task is included in current status totals; KPI week start"},
+        "period": {
+            "start": start_date.isoformat(),
+            "end": end_date.isoformat(),
+            "basis": (
+                "Task due date when available; otherwise task is included in current status "
+                "totals; KPI week start."
+            ),
+        },
         "filters": {"team": team_filter or None, "person": person_filter or None, "status": status_filter or None},
         "summary": {
             "active_members": len(active_people),
@@ -373,7 +396,14 @@ def build_team_performance(
         },
         "teams": teams,
         "members": members,
-        "tasks": sorted(followups, key=lambda item: (not item["overdue"], item["due_date"] or "9999-99-99", item["owner_name"].casefold())),
+        "tasks": sorted(
+            followups,
+            key=lambda item: (
+                not item["overdue"],
+                item["due_date"] or "9999-99-99",
+                item["owner_name"].casefold(),
+            ),
+        ),
         "kpis": kpi_results,
         "trend": trend,
         "data_quality": {
@@ -383,8 +413,14 @@ def build_team_performance(
                 "Tasks without a due date remain in workload/status totals but cannot be classified as overdue.",
                 "Outstanding overdue tasks remain visible even when their due date predates the selected reporting window.",
                 "A task is flagged for a stale update only when a recognized last-update date exists and is more than seven days old.",
-                "KPI below-target classification is only made when target and actual are numeric; direction is treated as higher-is-better unless a direction column explicitly indicates lower-is-better.",
-                "The trend counts tasks by due date, or last-update date when no due date exists; it is not a historical status snapshot.",
+                (
+                    "KPI below-target classification requires numeric target and actual; direction "
+                    "is higher-is-better unless a direction column explicitly indicates lower-is-better."
+                ),
+                (
+                    "The trend counts tasks by due date, or last-update date when no due date "
+                    "exists; it is not a historical status snapshot."
+                ),
             ],
         },
     }
