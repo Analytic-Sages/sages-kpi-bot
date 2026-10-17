@@ -7,7 +7,7 @@ Google Sheets remains the operational source of truth. This document translates 
 ## Non-negotiable safety gates
 
 - Keep `DRY_RUN=true` and `ENABLE_TEAM_WRITES=false` in production while this phase is built and tested.
-- Add an independent `ENABLE_BOT_WRITES=false` kill switch. It must not be implied by `ENABLE_TEAM_WORKFLOWS`, `ENABLE_SAFE_TELEGRAM_REPLIES`, or any general bot-enabled flag.
+- Add an independent `ENABLE_BOT_WRITES=false` deployment kill switch and a separate workbook config cell `Cfg_BotWritesEnabled`. Both must be explicitly enabled for a future approved write rollout; neither is implied by `Cfg_BotEnabled`, `ENABLE_TEAM_WORKFLOWS`, `ENABLE_SAFE_TELEGRAM_REPLIES`, or any general bot-enabled flag. The deployment-level setting and mutation-service gate are introduced in this increment; workbook config parsing and production wiring remain deferred until the Config worksheet schema is verified.
 - Do not enable any write capability because the admin dashboard is accessible or because read-only analytics pass.
 - Use a copied workbook, separate test bot token, and test Telegram group for all write-path tests.
 - Blocker Log writes are a separate, narrowly allowlisted capability; they must not implicitly update the Master Task Tracker.
