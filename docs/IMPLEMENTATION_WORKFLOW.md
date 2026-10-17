@@ -89,6 +89,8 @@ These are generic service capabilities only. No admin API is wired to the servic
 ## Stage 2 — Authenticated admin API
 
 ### Candidate endpoints (finalize after baseline)
+
+Implemented in the read-only API increment: `GET /api/v1/admin/overview` and `GET /api/v1/admin/audit-events`. Task/KPI list/detail and PATCH endpoints remain deferred because the Operations Manager is still updating the workbook and the live editable-field contract is not approved. The overview reports configuration/flags only; it does not test Google Sheets connectivity.
 - `GET /api/v1/admin/overview`
 - `GET /api/v1/admin/tasks`
 - `GET /api/v1/admin/tasks/{task_id}`
@@ -100,12 +102,12 @@ These are generic service capabilities only. No admin API is wired to the servic
 - Existing protected read-only `GET /admin/preflight` remains compatible unless a reviewed migration is approved.
 
 ### Tasks
-- [ ] Choose admin authentication/session strategy and identity source before exposing write APIs.
+- [x] Choose admin authentication/session strategy and identity source: Google OIDC, exact ADMIN_EMAILS allowlist, signed time-limited sessions, and CSRF-protected logout. Live sign-in was manually verified by the owner; live non-admin denial remains to be tested.
 - [ ] Add server-side role/permission checks and deny-by-default behavior.
 - [ ] Add request validation, pagination, filtering, safe error models, and correlation IDs.
 - [ ] Add rate limiting/abuse controls appropriate to the chosen deployment/auth strategy.
 - [ ] Add API tests for anonymous, non-admin, admin, invalid input, conflicts, provider failures, and sanitized responses.
-- [ ] Publish an API contract/OpenAPI review artifact for frontend work.
+- [x] Publish the read-only API contract in `docs/ADMIN_API.md`; task/KPI endpoints are explicitly deferred until the workbook schema is approved.
 
 ### Exit gate
 - [ ] Protected APIs are tested independently of the frontend.
