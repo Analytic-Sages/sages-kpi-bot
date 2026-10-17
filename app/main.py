@@ -5,9 +5,11 @@ import secrets
 import sqlite3
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
+from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.admin_api import create_admin_api_router
 from app.admin_auth import create_admin_auth_router
@@ -186,6 +188,27 @@ app = FastAPI(
 app.state.settings = settings
 app.include_router(create_admin_auth_router(settings))
 app.include_router(create_admin_api_router())
+app.mount(
+    "/control",
+    StaticFiles(directory=Path(__file__).resolve().parent / "static" / "admin", html=True),
+    name="admin-control-centre",
+)
+
+
+@app.middleware("http")
+async def admin_control_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    if request.url.path == "/control" or request.url.path.startswith("/control/"):
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; "
+            "img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; "
+            "frame-ancestors 'none'"
+        )
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 @app.get("/", tags=["system"])

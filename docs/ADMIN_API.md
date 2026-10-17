@@ -33,6 +33,20 @@ Returns `items`, `total`, `limit`, and `offset`. Items include event ID/time, re
 
 The audit store is opened in SQLite read-only mode for listing. A missing database or table returns an empty list without creating files. Database failures return a generic 503 response; internal paths and SQL/provider errors are not returned.
 
+## Admin control centre
+
+The same-origin, dependency-free control centre is served at `/control/`. It uses the existing session cookie and calls only the protected read-only API routes. The CSRF token is held in JavaScript memory for logout and is not written to local storage. All user-controlled/server-provided values are rendered with DOM `textContent`, not interpolated into HTML.
+
+The page includes:
+- Google sign-in entry point and signed-in/read-only session state.
+- Service configuration and feature-flag overview.
+- Explicit display of disabled side-effect gates.
+- Paginated audit history with exact outcome and worksheet filters.
+- Empty, loading, error, refresh, and session-expiry states.
+- A clear notice that task/KPI management is not available until workbook schema approval.
+
+The control centre is hosted by FastAPI under the same origin so the HttpOnly session cookie is sent naturally. Its responses receive a restrictive Content Security Policy, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy`, and `Cache-Control: no-store`. No frontend secrets or third-party scripts are required.
+
 ## Authentication and browser behavior
 
 - Use `GET /auth/login` to begin Google sign-in.
