@@ -17,8 +17,8 @@ from fastapi.responses import JSONResponse
 
 from app.admin_auth import require_admin
 from app.analytics.team_performance import build_team_performance
-from app.sheets.client import GoogleSheetsClient, GoogleSheetsError
 from app.audit.store import SQLiteAuditLog
+from app.sheets.client import GoogleSheetsClient, GoogleSheetsError
 
 logger = logging.getLogger("polaris.admin_api")
 
@@ -114,7 +114,12 @@ def create_admin_api_router() -> APIRouter:
         end_date: date | None = Query(default=None),
         team: str | None = Query(default=None, min_length=1, max_length=128),
         person: str | None = Query(default=None, min_length=1, max_length=256),
-        status: str | None = Query(default=None, min_length=1, max_length=32, pattern="^(completed|in_progress|open|blocked)$"),
+        status: str | None = Query(
+            default=None,
+            min_length=1,
+            max_length=32,
+            pattern="^(completed|in_progress|open|blocked)$",
+        ),
     ) -> JSONResponse:
         """Return read-only team/task/KPI aggregates from the live workbook."""
         session = require_admin(request)
@@ -123,7 +128,7 @@ def create_admin_api_router() -> APIRouter:
 
         today = datetime.now(UTC).date()
         effective_end = end_date or today
-        effective_start = start_date or (effective_end - __import__("datetime").timedelta(days=29))
+        effective_start = start_date or (effective_end - timedelta(days=29))
         if effective_start > effective_end:
             return _json_response(
                 {"detail": "start_date must be on or before end_date"}, status_code=422
@@ -156,7 +161,12 @@ def create_admin_api_router() -> APIRouter:
         except (GoogleSheetsError, OSError, RuntimeError, ValueError):
             logger.warning("admin_team_performance_failed reason=source_unavailable")
             return _json_response(
-                {"detail": "Team performance data is temporarily unavailable. Check the workbook connection and schema."},
+                {
+                    "detail": (
+                        "Team performance data is temporarily unavailable. Check the workbook "
+                        "connection and schema."
+                    )
+                },
                 status_code=503,
             )
         result["source"] = {
