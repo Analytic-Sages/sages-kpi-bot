@@ -115,11 +115,11 @@ class ValidatedChange:
 def fingerprint_row(headers: tuple[str, ...] | list[str], row: dict[str, str]) -> str:
     """Hash a stable, header-ordered representation of a row snapshot."""
     normalized_headers = tuple(str(header).strip() for header in headers)
-    snapshot = {
-        header: str(row.get(header, "")).strip()
+    snapshot = [
+        (header, str(row.get(header, "")).strip())
         for header in normalized_headers
-    }
-    encoded = json.dumps(snapshot, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    ]
+    encoded = json.dumps(snapshot, ensure_ascii=False, separators=(",", ":"))
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
