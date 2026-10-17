@@ -61,6 +61,7 @@ class Settings(BaseSettings):
     max_reminders_per_task_per_day: int = Field(default=2, ge=1, le=20)
     reminder_receipts_db_path: str = "data/polaris-reminders.sqlite3"
     audit_db_path: str = "data/polaris-audit.sqlite3"
+    change_requests_db_path: str = "data/polaris-change-requests.sqlite3"
     dry_run: bool = True
     # Allow only /start, /help, and /whoami replies while other side effects remain in dry-run.
     enable_safe_telegram_replies: bool = False
