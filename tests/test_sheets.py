@@ -252,3 +252,15 @@ async def test_append_record_does_not_retry_uncertain_write_failure():
             {"Task ID": "T002", "Task Name": "Write brief"},
         )
     assert worksheet.append_row.call_count == 1
+
+
+
+@pytest.mark.asyncio
+async def test_read_formula_rows_requests_formula_rendering_and_returns_rows():
+    client, worksheet = make_client([
+        ["Task ID", "Status"],
+        ["T001", '=IF(A2="","", "Completed")'],
+    ])
+    rows = await client.read_formula_rows("Master Task Tracker")
+    worksheet.get_all_values.assert_called_once_with(value_render_option="FORMULA")
+    assert rows == [{"Task ID": "T001", "Status": '=IF(A2="","", "Completed")'}]
