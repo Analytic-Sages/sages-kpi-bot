@@ -249,3 +249,26 @@ async def test_write_flag_still_blocks_mutation_when_dry_run_is_false(tmp_path):
     )
     assert result.status == "preview"
     assert not sheets.update_record_calls
+
+
+
+@pytest.mark.asyncio
+async def test_independent_bot_write_kill_switch_blocks_mutation(tmp_path):
+    service, sheets, audit = make_service(
+        tmp_path,
+        dry_run=False,
+        writes_enabled=True,
+        bot_writes_enabled=False,
+        audit=RecordingAudit(),
+    )
+    result = await service.mutate(
+        actor_id="admin@example.test",
+        worksheet="KPI Register",
+        record_id="K001",
+        changes={"Target": "12"},
+        expected_values={"Target": "10"},
+        request_id="req-bot-gate-off",
+    )
+    assert result.status == "preview"
+    assert not sheets.update_record_calls
+    assert audit.events[-1]["outcome"] == "preview"
