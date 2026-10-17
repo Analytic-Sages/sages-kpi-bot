@@ -183,6 +183,7 @@
       ["In progress", number(summary.in_progress), "Currently being worked on"],
       ["Blocked", number(summary.blocked), "Needs a blocker check-in"],
       ["KPI observations", number(summary.kpi_observations), number(summary.kpis_below_target) + " below target"],
+      ["Stale updates", number(summary.stale_updates), "Last update older than 7 days"],
       ["Due dates present", number(summary.tasks_with_due_dates), "Missing dates cannot be scored overdue"],
     ];
     for (const [label, value, note] of cards) {
@@ -245,6 +246,7 @@
       const reasons = [];
       if (item.overdue) reasons.push("Overdue");
       if (item.blocked) reasons.push("Blocked / blocker reported");
+      if (item.stale_update) reasons.push("No recent update (>7 days)");
       appendCell(row, reasons.join(" · "), "cell-alert");
       body.append(row);
     }
