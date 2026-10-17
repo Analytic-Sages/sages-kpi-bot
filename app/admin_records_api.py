@@ -50,10 +50,26 @@ def _status(value: str) -> str:
 
 
 def _parse_date(value: str) -> date | None:
-    try:
-        return date.fromisoformat(value.strip()[:10]) if value.strip() else None
-    except ValueError:
+    text = value.strip()
+    if not text:
         return None
+    try:
+        return datetime.fromisoformat(text.replace("Z", "+00:00")).date()
+    except ValueError:
+        pass
+    for date_format in (
+        "%d/%m/%Y",
+        "%m/%d/%Y",
+        "%d-%m-%Y",
+        "%Y/%m/%d",
+        "%b %d, %Y",
+        "%d %b %Y",
+    ):
+        try:
+            return datetime.strptime(text, date_format).date()
+        except ValueError:
+            continue
+    return None
 
 
 
