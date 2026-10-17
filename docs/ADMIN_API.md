@@ -55,6 +55,19 @@ The control centre is hosted by FastAPI under the same origin so the HttpOnly se
 - Read-only GET endpoints do not need a CSRF header. Any future state-changing endpoint must validate the session and `X-CSRF-Token`, validate authorization on the server, and call the audited mutation service.
 - Never put OAuth credentials, session secrets, or CSRF tokens in browser bundles, source control, logs, screenshots, or issue comments.
 
+
+## Read-only task and KPI record APIs
+
+The authenticated control centre exposes three additional read-only endpoints:
+
+- `GET /api/v1/admin/tasks` — bounded pagination (`limit=1..100`, `offset=0..100000`), with optional exact normalized `status`, `team`, `person` (person ID or exact name), free-text `query`, and `overdue_only=true` filters.
+- `GET /api/v1/admin/tasks/{task_id}` — returns a single task only when the stable ID matches exactly one source row; missing and duplicate IDs return 404.
+- `GET /api/v1/admin/kpis` — bounded pagination with optional `team`, `person`, and `active_only=false`; each item includes the latest weekly observation by `Week Start`.
+
+All three endpoints read the live `People Directory`, `Master Task Tracker`, `KPI Register`, and `Weekly KPI Log` source contracts as needed. They return selected operational fields only, use `Cache-Control: no-store`, and return sanitized 503 errors for missing configuration, provider errors, or missing required headers. They do not expose raw worksheet rows, write data, send notifications, or change feature flags. Task and KPI UI tables use safe DOM text rendering and are read-only.
+
+These APIs are an operational browsing increment, not approval to edit the workbook. Any future write route must use an explicit worksheet/field allowlist and `SafeSheetMutationService`, require expected-value snapshots, validate stable IDs and status transitions, record audit outcomes, and verify the write before reporting success. Editable field policies and production write activation remain separate gates.
+
 ## Deferred endpoints
 
 No task/KPI list/detail endpoints are published yet. The schema is not approved and the live workbook is being updated. Do not guess header names, expose raw rows, or create worksheet mutation policies from fixture data. The existing protected `GET /admin/preflight` remains separate and continues to require `PREFLIGHT_TOKEN`.
