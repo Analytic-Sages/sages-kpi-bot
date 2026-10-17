@@ -172,20 +172,21 @@ def build_team_performance(
             quality["tasks_unknown_owner"] += 1
         if _get(row, "task_due") and due is None:
             quality["tasks_unparseable_due_date"] += 1
-        if due and due < start_date - timedelta(days=3650):
-            # Keep historically dated tasks out of the reporting window below; no mutation.
-            pass
-        if due and due > end_date + timedelta(days=3650):
+        if due and due > today + timedelta(days=3650):
             quality["tasks_implausible_due_date"] += 1
         if owner_id not in allowed_ids:
             continue
         if state == "cancelled":
             continue
-        # Reporting window is due-date based when available; tasks without due dates are
-        # retained so workload and status totals remain useful.
-        if due and not (start_date <= due <= end_date) and state != "completed":
-            continue
         is_overdue = bool(due and due < today and state != "completed")
+        # Keep outstanding overdue work visible even when its original due date predates
+        # the selected reporting window. Otherwise use due date, then last update, as the
+        # reporting anchor. Undated tasks remain in current workload/status totals.
+        anchor = due or updated
+        in_window = bool(anchor and start_date <= anchor <= end_date)
+        if anchor and not in_window and not is_overdue:
+            continue
+        stale_update = bool(updated and (today - updated).days > 7 and state != "completed")
         task = {
             "id": task_id or f"row-{len(tasks) + 1}",
             "name": _get(row, "task_name") or task_id or "Untitled task",
@@ -198,6 +199,7 @@ def build_team_performance(
             "updated_date": updated.isoformat() if updated else None,
             "overdue": is_overdue,
             "blocked": state == "blocked" or bool(_get(row, "task_blocker")),
+            "stale_update": stale_update,
             "has_due_date": due is not None,
         }
         if status_filter and state != status_filter:
@@ -224,6 +226,8 @@ def build_team_performance(
             flags.append("overdue_tasks")
         if blocked:
             flags.append("blocked_tasks")
+        if any(item["stale_update"] for item in assigned):
+            flags.append("stale_updates")
         if not assigned:
             flags.append("no_tasks_in_period")
         if any(not item["has_due_date"] for item in assigned):
@@ -331,7 +335,7 @@ def build_team_performance(
     overdue = sum(item["overdue"] for item in tasks)
     blocked = sum(item["blocked"] for item in tasks)
     due_known = sum(item["has_due_date"] for item in tasks)
-    followups = [item for item in tasks if item["overdue"] or item["blocked"]]
+    followups = [item for item in tasks if item["overdue"] or item["blocked"] or item["stale_update"]]
     kpi_measurable = [item for item in kpi_results if item["below_target"] is not None]
     trend = []
     for offset in range(5, -1, -1):
@@ -357,6 +361,7 @@ def build_team_performance(
             "open": sum(item["status"] == "open" for item in tasks),
             "overdue": overdue,
             "blocked": blocked,
+            "stale_updates": sum(item["stale_update"] for item in tasks),
             "completion_rate": _ratio(completed, len(tasks)),
             "overdue_rate": _ratio(overdue, len(tasks)),
             "tasks_with_due_dates": due_known,
@@ -373,6 +378,8 @@ def build_team_performance(
             "notes": [
                 "Task dates and KPI periods are interpreted from recognized header names only.",
                 "Tasks without a due date remain in workload/status totals but cannot be classified as overdue.",
+                "Outstanding overdue tasks remain visible even when their due date predates the selected reporting window.",
+                "A task is flagged for a stale update only when a recognized last-update date exists and is more than seven days old.",
                 "KPI below-target classification is only made when target and actual are numeric; direction is treated as higher-is-better unless a direction column explicitly indicates lower-is-better.",
                 "The trend counts tasks by due date, or last-update date when no due date exists; it is not a historical status snapshot.",
             ],
