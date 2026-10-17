@@ -56,6 +56,16 @@ def _parse_date(value: str) -> date | None:
         return None
 
 
+
+def _first_value(row: dict[str, str], headers: tuple[str, ...]) -> str:
+    return next((row.get(header, "").strip() for header in headers if row.get(header, "").strip()), "")
+
+
+def _record_date(row: dict[str, str], headers: tuple[str, ...]) -> str | None:
+    parsed = _parse_date(_first_value(row, headers))
+    return parsed.isoformat() if parsed else None
+
+
 def _record_id(row: dict[str, str], header: str) -> str:
     return row.get(header, "").strip()
 
@@ -83,7 +93,10 @@ def create_admin_records_router() -> APIRouter:
         request: Request,
         limit: int = Query(default=25, ge=1, le=100),
         offset: int = Query(default=0, ge=0, le=100_000),
-        status: str | None = Query(default=None, pattern="^(completed|in_progress|open|blocked|cancelled|other)$"),
+        status: str | None = Query(
+            default=None,
+            pattern="^(completed|in_progress|open|blocked|cancelled|other)$",
+        ),
         team: str | None = Query(default=None, min_length=1, max_length=128),
         person: str | None = Query(default=None, min_length=1, max_length=256),
         query: str | None = Query(default=None, min_length=1, max_length=200),
@@ -126,16 +139,28 @@ def create_admin_records_router() -> APIRouter:
                 owner = people.get(owner_id, {})
                 raw_status = row.get("Status", "").strip()
                 state = _status(raw_status)
-                due = _parse_date(row.get("Due Date", "") or row.get("Deadline", "") or row.get("Target Date", ""))
+                due_text = (
+                    row.get("Due Date", "")
+                    or row.get("Deadline", "")
+                    or row.get("Target Date", "")
+                )
+                due = _parse_date(due_text)
                 if status and state != status:
                     continue
                 if team and owner.get("team", "").casefold() != team.casefold():
                     continue
-                if person and person.casefold() not in {owner_id.casefold(), owner.get("name", "").casefold()}:
+                if person and person.casefold() not in {
+                    owner_id.casefold(), owner.get("name", "").casefold()
+                }:
                     continue
-                if needle and needle not in " ".join((task_id, row.get("Task Name", ""), owner.get("name", ""))).casefold():
+                searchable = " ".join(
+                    (task_id, row.get("Task Name", ""), owner.get("name", ""))
+                ).casefold()
+                if needle and needle not in searchable:
                     continue
-                overdue = bool(due and due < today and state != "completed" and state != "cancelled")
+                overdue = bool(
+                    due and due < today and state not in {"completed", "cancelled"}
+                )
                 if overdue_only and not overdue:
                     continue
                 items.append({
@@ -152,9 +177,13 @@ def create_admin_records_router() -> APIRouter:
                         if _parse_date(row.get("Last Updated", "") or row.get("Updated At", "") or row.get("Last Check-in", "")) else None
                     ),
                     "overdue": overdue,
-                    "blocker": row.get("Blocker", "") or row.get("Blockers", "") or row.get("Blocked Reason", ""),
+                    "blocker": _first_value(row, ("Blocker", "Blockers", "Blocked Reason")),
                 })
-            items.sort(key=lambda item: (not item["overdue"], item["due_date"] or "9999-12-31", item["id"]))
+            items.sort(
+                key=lambda item: (
+                    not item["overdue"], item["due_date"] or "9999-12-31", item["id"]
+                )
+            )
             return _response({
                 "source": {"system": "Google Sheets", "status": "read_success", "worksheet": TASKS},
                 "items": items[offset:offset + limit],
@@ -165,7 +194,10 @@ def create_admin_records_router() -> APIRouter:
             })
         except (GoogleSheetsError, OSError, RuntimeError, ValueError):
             logger.warning("admin_task_list_failed reason=source_unavailable")
-            return _response({"detail": "Task data is temporarily unavailable. Check the workbook connection and schema."}, 503)
+            return _response(
+                {"detail": "Task data is temporarily unavailable. Check workbook connection and schema."},
+                503,
+            )
 
     @router.get("/tasks/{task_id}")
     async def get_task(request: Request, task_id: str) -> JSONResponse:
@@ -198,8 +230,12 @@ def create_admin_records_router() -> APIRouter:
                     "owner_name": owner.get("Full Name", "").strip() or "Unassigned",
                     "team": owner.get("Team", "").strip() or "Unassigned team",
                     "status_label": row.get("Status", "").strip() or "Unknown",
-                    "due_date": row.get("Due Date", "") or row.get("Deadline", "") or row.get("Target Date", "") or None,
-                    "updated_date": row.get("Last Updated", "") or row.get("Updated At", "") or row.get("Last Check-in", "") or None,
+                    "due_date": _first_value(
+                        row, ("Due Date", "Deadline", "Target Date")
+                    ) or None,
+                    "updated_date": _first_value(
+                        row, ("Last Updated", "Updated At", "Last Check-in")
+                    ) or None,
                     "blocker": row.get("Blocker", "") or row.get("Blockers", "") or row.get("Blocked Reason", ""),
                 },
             })
@@ -236,26 +272,36 @@ def create_admin_records_router() -> APIRouter:
                 key = _record_id(row, "KPI ID")
                 if not key:
                     continue
-                if key not in latest or row.get("Week Start", "") > latest[key].get("Week Start", ""):
+                if key not in latest or row.get("Week Start", "") > latest[key].get(
+                    "Week Start", ""
+                ):
                     latest[key] = row
             items = []
             for row in kpi_rows:
                 kpi_id = _record_id(row, "KPI ID")
                 if not kpi_id:
                     continue
-                active = row.get("Active?", "").strip().casefold() in {"true", "yes", "1", "active", "enabled"}
+                active = row.get("Active?", "").strip().casefold() in {
+                    "true", "yes", "1", "active", "enabled"
+                }
                 if active_only and not active:
                     continue
                 owner_id = _record_id(row, "Owner Person ID")
                 owner = people_by_id.get(owner_id, {})
                 if team and owner.get("Team", "").strip().casefold() != team.casefold():
                     continue
-                if person and person.casefold() not in {owner_id.casefold(), owner.get("Full Name", "").strip().casefold()}:
+                if person and person.casefold() not in {
+                    owner_id.casefold(), owner.get("Full Name", "").strip().casefold()
+                }:
                     continue
                 observation = latest.get(kpi_id, {})
                 items.append({
                     "id": kpi_id,
-                    "name": row.get("KPI", "").strip() or row.get("KPI Label", "").strip() or kpi_id,
+                    "name": (
+                        row.get("KPI", "").strip()
+                        or row.get("KPI Label", "").strip()
+                        or kpi_id
+                    ),
                     "owner_id": owner_id or None,
                     "owner_name": owner.get("Full Name", "").strip() or "Unassigned",
                     "team": owner.get("Team", "").strip() or "Unassigned team",
@@ -263,9 +309,17 @@ def create_admin_records_router() -> APIRouter:
                     "actual": observation.get("Actual", "").strip() or None,
                     "week_start": observation.get("Week Start", "").strip() or None,
                     "active": active,
-                    "direction": row.get("Direction", "").strip() or row.get("Target Direction", "").strip() or None,
+                    "direction": (
+                        row.get("Direction", "").strip()
+                        or row.get("Target Direction", "").strip()
+                        or None
+                    ),
                 })
-            items.sort(key=lambda item: (item["team"].casefold(), item["name"].casefold(), item["id"]))
+            items.sort(
+                key=lambda item: (
+                    item["team"].casefold(), item["name"].casefold(), item["id"]
+                )
+            )
             return _response({
                 "source": {"system": "Google Sheets", "status": "read_success", "worksheet": KPIS},
                 "items": items[offset:offset + limit],
@@ -276,6 +330,9 @@ def create_admin_records_router() -> APIRouter:
             })
         except (GoogleSheetsError, OSError, RuntimeError, ValueError):
             logger.warning("admin_kpi_list_failed reason=source_unavailable")
-            return _response({"detail": "KPI data is temporarily unavailable. Check the workbook connection and schema."}, 503)
+            return _response(
+                {"detail": "KPI data is temporarily unavailable. Check workbook connection and schema."},
+                503,
+            )
 
     return router
