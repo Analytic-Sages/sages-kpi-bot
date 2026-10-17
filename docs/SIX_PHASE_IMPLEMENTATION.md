@@ -38,8 +38,11 @@ No production spreadsheet edits or live messages are used as smoke tests. Secret
 Implementation contract: [`PHASE_2_FIELD_POLICY_AND_APPROVALS.md`](PHASE_2_FIELD_POLICY_AND_APPROVALS.md). The proposed workbook header names still require live workbook and protected-range verification before write policies are activated.
 
 - Add a separate `ENABLE_BOT_WRITES=false` kill switch, independent of general bot and workflow flags.
-- Add typed request models for task and KPI changes.
-- Define per-worksheet allowlists only for explicitly approved editable columns; formula-owned columns are never writable.
+- [x] Add a durable SQLite change-request state store for DRAFT, confirmation, approval, applied, rejected, expired, conflict, failed, and cancelled states.
+- [x] Enforce requester identity, separate Tier 2 approver identity, no self-approval, 10-minute confirmation expiry, and 48-hour approval expiry in the state store.
+- [x] Persist append-only request-transition events and deduplicate source messages / request IDs.
+- [ ] Add typed request models and policy validation for task and KPI changes.
+- [ ] Verify the live workbook headers and formula ownership before enabling any worksheet allowlist.
 - Validate stable IDs, owner references, permitted status transitions, field values, and expected-value snapshots.
 - Route all changes through `SafeSheetMutationService`; require actor identity, correlation/request ID, audit intent/outcome, and read-after-write verification.
 - Add preview/confirmation UX, conflict refresh, uncertain-outcome state, and idempotent request handling.
@@ -92,4 +95,6 @@ Implementation contract: [`PHASE_2_FIELD_POLICY_AND_APPROVALS.md`](PHASE_2_FIELD
 
 - Read-only admin sign-in, overview, audit history, and team performance analytics are merged on `main`.
 - The task/KPI record centre is merged on `main`; CI passed on the merge commit and the operator confirmed the deployed read-only Control Centre.
-- No production write or notification flags are changed by this plan. Phase 2 is requirements-defined; live mutation policies and workbook schema remain unverified until explicitly checked.
+- PR #36 merged: Phase 2 requirements contract and independent `ENABLE_BOT_WRITES=false` gate are in `main`.
+- Current branch increment adds the durable request state machine only; it does not expose command handlers or perform Sheets writes. All production write and notification flags remain disabled.
+- Live mutation policies, workbook schema, formula ownership, protected ranges, and bot identity/approval routing remain unverified until explicitly checked.
