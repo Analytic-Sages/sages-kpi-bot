@@ -10,6 +10,7 @@ def test_defaults_are_safe_for_local_development():
     assert settings.dry_run is True
     assert settings.enable_team_writes is False
     assert settings.enable_bot_writes is False
+    assert settings.change_requests_db_path == "data/polaris-change-requests.sqlite3"
     assert settings.enable_dry_run_team_replies is False
     assert settings.enable_safe_telegram_replies is False
     assert settings.timezone == "Africa/Lagos"
