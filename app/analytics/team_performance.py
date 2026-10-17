@@ -5,9 +5,9 @@ variations, but the service never writes to Sheets and never fabricates missing 
 """
 from __future__ import annotations
 
-import re
 from collections import Counter, defaultdict
 from datetime import UTC, date, datetime, timedelta
+import re
 from typing import Any
 
 
