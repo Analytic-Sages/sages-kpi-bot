@@ -510,7 +510,7 @@ class SQLiteChangeRequestStore:
                 """SELECT event_id, request_id, occurred_at, actor_id, action,
                           from_status, to_status, outcome_code
                    FROM change_request_events WHERE request_id = ?
-                   ORDER BY occurred_at, event_id""",
+                   ORDER BY sequence""",
                 (request_id,),
             ).fetchall()
         return [dict(row) for row in rows]
@@ -553,7 +553,8 @@ class SQLiteChangeRequestStore:
         )
         connection.execute(
             """CREATE TABLE IF NOT EXISTS change_request_events (
-                event_id TEXT PRIMARY KEY,
+                sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_id TEXT NOT NULL UNIQUE,
                 request_id TEXT NOT NULL,
                 occurred_at TEXT NOT NULL,
                 actor_id TEXT NOT NULL,
