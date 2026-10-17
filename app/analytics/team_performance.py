@@ -37,6 +37,7 @@ ALIASES = {
     "kpi_name": ("KPI", "KPI Name", "Metric", "Metric Name"),
     "kpi_owner": ("Owner Person ID", "Person ID", "Owner ID"),
     "kpi_target": ("Target", "KPI Target"),
+    "kpi_active": ("Active?", "Active"),
     "kpi_actual": ("Actual", "Actual Value", "Result"),
     "kpi_week": ("Week Start", "Week", "Reporting Week", "Period Start"),
     "kpi_direction": (
@@ -300,6 +301,13 @@ def build_team_performance(
             continue
         if kpi_id in register:
             quality["duplicate_kpi_ids"] += 1
+            continue
+        active_status = _key(_get(row, "kpi_active"))
+        if active_status in {"no", "false", "0", "inactive", "disabled", "n"}:
+            quality["inactive_kpis"] += 1
+            continue
+        if active_status not in {"yes", "true", "1", "active", "enabled", "y"}:
+            quality["kpis_missing_active_status"] += 1
             continue
         kpi_owner = _get(row, "kpi_owner")
         register[kpi_id] = {
