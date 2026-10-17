@@ -13,13 +13,19 @@ class FakeSheets:
                 {"Person ID": "p1", "Full Name": "Ada", "Team": "Research", "Status": "Active"}
             ],
             "Master Task Tracker": [
-                {"Task ID": "t1", "Task Name": "Write report", "Assigned To ID": "p1", "Status": "In Progress", "Due Date": "2026-10-01"}
+                {
+                    "Task ID": "t1", "Task Name": "Write report", "Assigned To ID": "p1",
+                    "Status": "In Progress", "Due Date": "2026-10-01",
+                }
             ],
             "KPI Register": [
                 {"KPI ID": "k1", "KPI": "Reports", "Owner Person ID": "p1", "Target": "10"}
             ],
             "Weekly KPI Log": [
-                {"Week Start": "2026-10-12", "KPI ID": "k1", "Owner Person ID": "p1", "Target": "10", "Actual": "8"}
+                {
+                    "Week Start": "2026-10-12", "KPI ID": "k1", "Owner Person ID": "p1",
+                    "Target": "10", "Actual": "8",
+                }
             ],
         }
         return data[worksheet_name]
@@ -58,7 +64,9 @@ def test_team_performance_returns_read_only_aggregates(monkeypatch):
         {"email": "admin@example.com", "csrf": "csrf-token", "issued_at": 1}
     )
     client.cookies.set(SESSION_COOKIE, cookie)
-    response = client.get("/api/v1/admin/team-performance?start_date=2026-10-01&end_date=2026-10-31")
+    response = client.get(
+        "/api/v1/admin/team-performance?start_date=2026-10-01&end_date=2026-10-31"
+    )
     assert response.status_code == 200
     body = response.json()
     assert body["source"]["status"] == "read_success"
@@ -77,5 +85,7 @@ def test_team_performance_rejects_inverted_date_range():
         {"email": "admin@example.com", "csrf": "csrf-token", "issued_at": 1}
     )
     client.cookies.set(SESSION_COOKIE, cookie)
-    response = client.get("/api/v1/admin/team-performance?start_date=2026-10-31&end_date=2026-10-01")
+    response = client.get(
+        "/api/v1/admin/team-performance?start_date=2026-10-31&end_date=2026-10-01"
+    )
     assert response.status_code == 422
