@@ -9,6 +9,7 @@ Keep these values in Render until a separate, explicit production approval:
 ```dotenv
 DRY_RUN=true
 ENABLE_TEAM_WRITES=false
+ENABLE_BOT_WRITES=false
 ENABLE_SCHEDULED_WORKFLOWS=false
 ENABLE_ANALYTICS=false
 ENABLE_WEBHOOKS=false
@@ -21,19 +22,22 @@ No production spreadsheet edits or live messages are used as smoke tests. Secret
 
 ## Phase 1 — Operational record centre
 
-**In progress in this branch.**
+**Accepted by operator after deployed Control Centre smoke test.**
 
 - [x] Authenticated, paginated, read-only task list API with status/team/person/query/overdue filters.
 - [x] Authenticated task detail API that rejects missing or ambiguous IDs.
 - [x] Authenticated, paginated, read-only KPI register API with owner/team filters and latest recorded observation.
 - [x] Same-origin task and KPI tables with loading/error/empty states and pagination.
-- [ ] CI passes on the exact PR head.
-- [ ] Browser smoke test on the deployed control centre.
+- [x] CI passes on the merged main commit.
+- [x] Operator confirmed the deployed Control Centre loads, authenticates the admin, and displays the read-only boundary.
 
 **Exit gate:** the dashboard reads live records without writes, unauthorized requests return 401, and source failures return sanitized 503 responses.
 
 ## Phase 2 — Audited mutation and approval workflow
 
+Implementation contract: [`PHASE_2_FIELD_POLICY_AND_APPROVALS.md`](PHASE_2_FIELD_POLICY_AND_APPROVALS.md). The proposed workbook header names still require live workbook and protected-range verification before write policies are activated.
+
+- Add a separate `ENABLE_BOT_WRITES=false` kill switch, independent of general bot and workflow flags.
 - Add typed request models for task and KPI changes.
 - Define per-worksheet allowlists only for explicitly approved editable columns; formula-owned columns are never writable.
 - Validate stable IDs, owner references, permitted status transitions, field values, and expected-value snapshots.
@@ -87,5 +91,5 @@ No production spreadsheet edits or live messages are used as smoke tests. Secret
 ## Current implementation status
 
 - Read-only admin sign-in, overview, audit history, and team performance analytics are merged on `main`.
-- This branch adds the first task/KPI record-centre increment; CI and deployed browser verification remain to be observed.
-- No production write or notification flags are changed by this plan.
+- The task/KPI record centre is merged on `main`; CI passed on the merge commit and the operator confirmed the deployed read-only Control Centre.
+- No production write or notification flags are changed by this plan. Phase 2 is requirements-defined; live mutation policies and workbook schema remain unverified until explicitly checked.

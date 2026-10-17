@@ -53,7 +53,10 @@ class RecordingAudit:
         self.events.append(dict(event))
 
 
-def make_service(tmp_path, *, dry_run=True, writes_enabled=False, records=None, audit=None):
+def make_service(
+    tmp_path, *, dry_run=True, writes_enabled=False, bot_writes_enabled=False,
+    records=None, audit=None
+):
     records = records or {
         "KPI Register": [{"KPI ID": "K001", "Target": "10", "KPI": "Qualified Leads"}]
     }
@@ -71,6 +74,7 @@ def make_service(tmp_path, *, dry_run=True, writes_enabled=False, records=None, 
         audit=audit,
         dry_run=dry_run,
         writes_enabled=writes_enabled,
+        bot_writes_enabled=bot_writes_enabled,
     )
     return service, sheets, audit
 
@@ -142,7 +146,9 @@ async def test_mutation_rejects_duplicate_record_ids(tmp_path):
 @pytest.mark.asyncio
 async def test_mutation_live_path_verifies_and_audits(tmp_path):
     audit = RecordingAudit()
-    service, sheets, _ = make_service(tmp_path, dry_run=False, writes_enabled=True, audit=audit)
+    service, sheets, _ = make_service(
+        tmp_path, dry_run=False, writes_enabled=True, bot_writes_enabled=True, audit=audit
+    )
     result = await service.mutate(
         actor_id="admin@example.test",
         worksheet="KPI Register",
@@ -160,7 +166,13 @@ async def test_mutation_live_path_verifies_and_audits(tmp_path):
 @pytest.mark.asyncio
 async def test_mutation_uncertain_write_is_not_reported_as_success(tmp_path):
     audit = RecordingAudit()
-    service, sheets, _ = make_service(tmp_path, dry_run=False, writes_enabled=True, audit=audit)
+    service, sheets, _ = make_service(
+        tmp_path,
+        dry_run=False,
+        writes_enabled=True,
+        bot_writes_enabled=True,
+        audit=audit,
+    )
     async def uncertain(*args, **kwargs):
         raise RuntimeError("connection lost after request")
     sheets.update_record = uncertain
@@ -216,7 +228,7 @@ async def test_audit_failure_before_write_prevents_mutation(tmp_path):
             raise OSError("audit storage unavailable")
 
     service, sheets, _ = make_service(
-        tmp_path, dry_run=False, writes_enabled=True, audit=BrokenAudit()
+        tmp_path, dry_run=False, writes_enabled=True, bot_writes_enabled=True, audit=BrokenAudit()
     )
     with pytest.raises(OSError, match="audit storage unavailable"):
         await service.mutate(
@@ -243,3 +255,26 @@ async def test_write_flag_still_blocks_mutation_when_dry_run_is_false(tmp_path):
     )
     assert result.status == "preview"
     assert not sheets.update_record_calls
+
+
+
+@pytest.mark.asyncio
+async def test_independent_bot_write_kill_switch_blocks_mutation(tmp_path):
+    service, sheets, audit = make_service(
+        tmp_path,
+        dry_run=False,
+        writes_enabled=True,
+        bot_writes_enabled=False,
+        audit=RecordingAudit(),
+    )
+    result = await service.mutate(
+        actor_id="admin@example.test",
+        worksheet="KPI Register",
+        record_id="K001",
+        changes={"Target": "12"},
+        expected_values={"Target": "10"},
+        request_id="req-bot-gate-off",
+    )
+    assert result.status == "preview"
+    assert not sheets.update_record_calls
+    assert audit.events[-1]["outcome"] == "preview"
