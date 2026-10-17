@@ -172,9 +172,8 @@ def create_admin_records_router() -> APIRouter:
                     "status": state,
                     "status_label": raw_status or "Unknown",
                     "due_date": due.isoformat() if due else None,
-                    "updated_date": (
-                        _parse_date(row.get("Last Updated", "") or row.get("Updated At", "") or row.get("Last Check-in", "")).isoformat()
-                        if _parse_date(row.get("Last Updated", "") or row.get("Updated At", "") or row.get("Last Check-in", "")) else None
+                    "updated_date": _record_date(
+                        row, ("Last Updated", "Updated At", "Last Check-in")
                     ),
                     "overdue": overdue,
                     "blocker": _first_value(row, ("Blocker", "Blockers", "Blocked Reason")),
@@ -236,12 +235,15 @@ def create_admin_records_router() -> APIRouter:
                     "updated_date": _first_value(
                         row, ("Last Updated", "Updated At", "Last Check-in")
                     ) or None,
-                    "blocker": row.get("Blocker", "") or row.get("Blockers", "") or row.get("Blocked Reason", ""),
+                    "blocker": _first_value(row, ("Blocker", "Blockers", "Blocked Reason")),
                 },
             })
         except (GoogleSheetsError, OSError, RuntimeError, ValueError):
             logger.warning("admin_task_detail_failed reason=source_unavailable")
-            return _response({"detail": "Task data is temporarily unavailable. Check the workbook connection and schema."}, 503)
+            return _response(
+                {"detail": "Task data is temporarily unavailable. Check workbook connection and schema."},
+                503,
+            )
 
     @router.get("/kpis")
     async def list_kpis(
