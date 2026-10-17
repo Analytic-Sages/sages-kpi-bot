@@ -170,12 +170,6 @@ def _validate_status(current: str, requested: str, tier: int, context: PolicyCon
         raise ChangePolicyError("Moving a task to Completed requires Tier 2 approval")
     if current == "Closed" and requested != current:
         raise ChangePolicyError("Reopening a Closed task requires a separately approved policy")
-    if requested == "Completed":
-        progress = context.current_row.get("% Complete", "").strip()
-        if "% Complete" in context.current_row:
-            progress = context.current_row.get("% Complete", "").strip()
-        if progress != "" and _number("% Complete", progress) != Decimal(100):
-            raise ChangePolicyError("Completed requires % Complete to equal 100")
 
 
 def validate_proposal(
