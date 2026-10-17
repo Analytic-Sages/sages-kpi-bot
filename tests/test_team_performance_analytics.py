@@ -80,3 +80,23 @@ def test_filters_are_applied_to_team_member_and_status():
     )
     assert result["summary"]["tasks"] == 1
     assert result["summary"]["completed"] == 1
+
+
+def test_stale_undated_task_remains_in_followup_queue():
+    result = build_team_performance(
+        [{"Person ID": "p1", "Full Name": "Ada", "Team": "Research", "Status": "Active"}],
+        [
+            {
+                "Task ID": "t1", "Task Name": "Update tracker", "Assigned To ID": "p1",
+                "Status": "In Progress", "Last Updated": "2026-10-01",
+            }
+        ],
+        [],
+        [],
+        today=date(2026, 10, 17),
+        start_date=date(2026, 10, 15),
+        end_date=date(2026, 10, 31),
+    )
+    assert result["summary"]["stale_updates"] == 1
+    assert result["tasks"][0]["id"] == "t1"
+    assert result["tasks"][0]["stale_update"] is True
