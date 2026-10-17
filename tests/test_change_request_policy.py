@@ -41,6 +41,7 @@ def task_context(**overrides):
         assigned_to_id="member-1",
         assigned_by_id="manager-1",
         known_active_person_ids=frozenset({"member-1", "member-2"}),
+        known_active_assignee_values=frozenset({"Member One", "Member Two"}),
         status_is_authoritative=True,
     )
     return replace(base, **overrides)
@@ -186,6 +187,17 @@ def test_tier2_assignment_must_reference_known_active_person():
     proposal = task_proposal(context, {"Assigned To": "ghost"}, tier=2)
     with pytest.raises(ChangePolicyError, match="known active person"):
         validate_proposal(proposal, context)
+
+
+def test_reopening_closed_task_requires_tier2_approval():
+    row = {**TASK_ROW, "Status": "Closed"}
+    context = task_context(current_row=row)
+    tier1 = task_proposal(context, {"Status": "In Progress"}, tier=1)
+    with pytest.raises(ChangePolicyError, match="require Tier 2"):
+        validate_proposal(tier1, context)
+
+    tier2 = task_proposal(context, {"Status": "In Progress"}, tier=2)
+    assert validate_proposal(tier2, context).changes == {"Status": "In Progress"}
 
 
 def test_kpi_target_requires_owner_and_positive_finite_number():
