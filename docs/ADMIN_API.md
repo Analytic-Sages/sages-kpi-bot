@@ -4,7 +4,7 @@
 
 The API is mounted at `/api/v1/admin` and uses the same Google OIDC signed session as `/admin/session`. Every route checks the session server-side against the current `ADMIN_EMAILS` allowlist. Responses include `Cache-Control: no-store`.
 
-This increment is deliberately read-only. It does not expose task/KPI rows, does not invoke Google Sheets, and does not call the Sheets mutation service. Task/KPI browsing and editing remain unavailable until the Operations Manager confirms workbook updates are complete and the live headers, formulas, editable columns, stable IDs, and owner/status rules have been reviewed.
+This API surface is read-only. Overview and audit routes do not invoke Google Sheets; the team-performance, task, task-detail, and KPI routes read selected records from the four operational worksheets. No route calls the Sheets mutation service. Editing remains unavailable until editable columns, formula ownership, stable IDs, owner references, and status-transition rules have been explicitly approved.
 
 ## Endpoints
 
@@ -70,7 +70,7 @@ These APIs are an operational browsing increment, not approval to edit the workb
 
 ## Deferred endpoints
 
-No task/KPI list/detail endpoints are published yet. The schema is not approved and the live workbook is being updated. Do not guess header names, expose raw rows, or create worksheet mutation policies from fixture data. The existing protected `GET /admin/preflight` remains separate and continues to require `PREFLIGHT_TOKEN`.
+Task list/detail and KPI list endpoints are now published as read-only routes and expose selected fields only. Task/KPI write endpoints remain deferred until editable columns and formula ownership are explicitly approved. Do not guess header names or create worksheet mutation policies from fixture data. The existing protected `GET /admin/preflight` remains separate and continues to require `PREFLIGHT_TOKEN`.
 
 ## Verification checklist
 
