@@ -5,9 +5,10 @@ unavailable until the live workbook schema and editable-field policy have been a
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import sqlite3
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +16,8 @@ from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
 
 from app.admin_auth import require_admin
+from app.analytics.team_performance import build_team_performance
+from app.sheets.client import GoogleSheetsClient, GoogleSheetsError
 from app.audit.store import SQLiteAuditLog
 
 logger = logging.getLogger("polaris.admin_api")
@@ -103,6 +106,70 @@ def create_admin_api_router() -> APIRouter:
                 },
             }
         )
+
+    @router.get("/team-performance")
+    async def team_performance(
+        request: Request,
+        start_date: date | None = Query(default=None),
+        end_date: date | None = Query(default=None),
+        team: str | None = Query(default=None, min_length=1, max_length=128),
+        person: str | None = Query(default=None, min_length=1, max_length=256),
+        status: str | None = Query(default=None, min_length=1, max_length=32),
+    ) -> JSONResponse:
+        """Return read-only team/task/KPI aggregates from the live workbook."""
+        session = require_admin(request)
+        if session is None:
+            return _unauthorized()
+
+        today = datetime.now(UTC).date()
+        effective_end = end_date or today
+        effective_start = start_date or (effective_end - __import__("datetime").timedelta(days=29))
+        if effective_start > effective_end:
+            return _json_response(
+                {"detail": "start_date must be on or before end_date"}, status_code=422
+            )
+        settings = request.app.state.settings
+        if not settings.google_sheet_id:
+            return _json_response(
+                {"detail": "Google Sheets is not configured"}, status_code=503
+            )
+        try:
+            sheets = await asyncio.to_thread(GoogleSheetsClient.from_settings, settings)
+            people_rows, task_rows, kpi_register_rows, kpi_log_rows = await asyncio.gather(
+                sheets.read_records("People Directory"),
+                sheets.read_records("Master Task Tracker"),
+                sheets.read_records("KPI Register"),
+                sheets.read_records("Weekly KPI Log"),
+            )
+            result = build_team_performance(
+                people_rows,
+                task_rows,
+                kpi_register_rows,
+                kpi_log_rows,
+                today=today,
+                start_date=effective_start,
+                end_date=effective_end,
+                team_filter=team,
+                person_filter=person,
+                status_filter=status,
+            )
+        except (GoogleSheetsError, OSError, RuntimeError, ValueError):
+            logger.warning("admin_team_performance_failed reason=source_unavailable")
+            return _json_response(
+                {"detail": "Team performance data is temporarily unavailable. Check the workbook connection and schema."},
+                status_code=503,
+            )
+        result["source"] = {
+            "system": "Google Sheets",
+            "status": "read_success",
+            "worksheets": [
+                "People Directory",
+                "Master Task Tracker",
+                "KPI Register",
+                "Weekly KPI Log",
+            ],
+        }
+        return _json_response(result)
 
     @router.get("/audit-events")
     async def audit_events(
