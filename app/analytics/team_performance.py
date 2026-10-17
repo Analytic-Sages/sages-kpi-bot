@@ -5,9 +5,9 @@ variations, but the service never writes to Sheets and never fabricates missing 
 """
 from __future__ import annotations
 
-import re
 from collections import Counter, defaultdict
 from datetime import UTC, date, datetime, timedelta
+from re import sub
 from typing import Any
 
 
@@ -46,7 +46,7 @@ ALIASES = {
 
 
 def _key(value: Any) -> str:
-    return re.sub(r"[^a-z0-9]+", "", str(value or "").casefold())
+    return sub(r"[^a-z0-9]+", "", str(value or "").casefold())
 
 
 def _get(row: dict[str, Any], field: str, default: str = "") -> str:
