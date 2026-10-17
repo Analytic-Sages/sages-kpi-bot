@@ -171,7 +171,10 @@ class SQLiteChangeRequestStore:
                 if existing is not None:
                     if existing["actor_id"] != actor_id:
                         raise ChangeRequestForbidden("Source message is already bound to another actor")
-                    return self._from_row(existing)
+                    existing_request = self._from_row(existing)
+                    if existing_request.payload != payload or existing_request.tier != tier:
+                        raise ChangeRequestError("Source message is already bound to different request data")
+                    return existing_request
             existing_id = connection.execute(
                 "SELECT * FROM change_requests WHERE request_id = ?", (request_id,)
             ).fetchone()
@@ -179,7 +182,11 @@ class SQLiteChangeRequestStore:
                 existing_request = self._from_row(existing_id)
                 if existing_request.actor_id != actor_id:
                     raise ChangeRequestForbidden("Request ID is already bound to another actor")
-                if existing_request.payload != payload or existing_request.tier != tier:
+                if (
+                    existing_request.payload != payload
+                    or existing_request.tier != tier
+                    or existing_request.allowed_approver_ids != allowed_approver_ids
+                ):
                     raise ChangeRequestError("Request ID is already bound to different request data")
                 return existing_request
             connection.execute(
@@ -316,15 +323,37 @@ class SQLiteChangeRequestStore:
     def _expire_due_sync(self, now: datetime) -> int:
         with self._connection() as connection:
             connection.execute("BEGIN IMMEDIATE")
-            cursor = connection.execute(
-                """UPDATE change_requests
-                   SET status = 'EXPIRED', updated_at = ?, outcome_code = 'REQUEST_EXPIRED'
+            rows = connection.execute(
+                """SELECT * FROM change_requests
                    WHERE (status = 'AWAITING_CONFIRMATION'
                           AND confirmation_expires_at <= ?)
                       OR (status = 'AWAITING_APPROVAL' AND approval_expires_at <= ?)""",
-                (now.isoformat(), now.isoformat(), now.isoformat()),
-            )
-            return cursor.rowcount
+                (now.isoformat(), now.isoformat()),
+            ).fetchall()
+            for row in rows:
+                request = self._from_row(row)
+                code = (
+                    "CONFIRMATION_EXPIRED"
+                    if request.status == "AWAITING_CONFIRMATION"
+                    else "APPROVAL_EXPIRED"
+                )
+                connection.execute(
+                    """UPDATE change_requests
+                       SET status = 'EXPIRED', updated_at = ?, outcome_code = ?
+                       WHERE request_id = ?""",
+                    (now.isoformat(), code, request.request_id),
+                )
+                self._record_event(
+                    connection,
+                    request=request,
+                    actor_id=request.actor_id,
+                    action="expire",
+                    from_status=request.status,
+                    to_status="EXPIRED",
+                    occurred_at=now,
+                    outcome_code=code,
+                )
+            return len(rows)
 
     async def _transition(
         self,
