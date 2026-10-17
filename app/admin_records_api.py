@@ -286,7 +286,12 @@ def create_admin_records_router() -> APIRouter:
         except (GoogleSheetsError, OSError, RuntimeError, ValueError):
             logger.warning("admin_task_detail_failed reason=source_unavailable")
             return _response(
-                {"detail": "Task data is temporarily unavailable. Check workbook connection and schema."},
+                {
+                    "detail": (
+                        "Task data is temporarily unavailable. "
+                        "Check workbook connection and schema."
+                    )
+                },
                 503,
             )
 
