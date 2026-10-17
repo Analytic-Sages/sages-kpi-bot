@@ -30,14 +30,18 @@ ALIASES = {
         "Last Updated", "Updated At", "Last Update", "Updated On",
         "Last Check-in", "Last Check In",
     ),
-    "task_blocker": ("Blocker", "Blockers", "Blocker Description", "Blocked Reason", "Blocker Status"),
+    "task_blocker": (
+        "Blocker", "Blockers", "Blocker Description", "Blocked Reason", "Blocker Status",
+    ),
     "kpi_id": ("KPI ID", "Metric ID"),
     "kpi_name": ("KPI", "KPI Name", "Metric", "Metric Name"),
     "kpi_owner": ("Owner Person ID", "Person ID", "Owner ID"),
     "kpi_target": ("Target", "KPI Target"),
     "kpi_actual": ("Actual", "Actual Value", "Result"),
     "kpi_week": ("Week Start", "Week", "Reporting Week", "Period Start"),
-    "kpi_direction": ("Direction", "Target Direction", "Measurement Direction", "Success Direction"),
+    "kpi_direction": (
+        "Direction", "Target Direction", "Measurement Direction", "Success Direction",
+    ),
 }
 
 
@@ -231,7 +235,10 @@ def build_team_performance(
         blocked = sum(item["blocked"] for item in assigned)
         in_progress = sum(item["status"] == "in_progress" for item in assigned)
         open_count = sum(item["status"] == "open" for item in assigned)
-        last_update = max((item["updated_date"] for item in assigned if item["updated_date"]), default=None)
+        last_update = max(
+            (item["updated_date"] for item in assigned if item["updated_date"]),
+            default=None,
+        )
         flags = []
         if overdue:
             flags.append("overdue_tasks")
@@ -255,7 +262,12 @@ def build_team_performance(
             "last_update": last_update,
             "follow_up_reasons": flags,
         })
-    members.sort(key=lambda item: (-item["overdue"], -item["blocked"], item["completion_rate"] or -1, item["name"].casefold()))
+    members.sort(
+        key=lambda item: (
+            -item["overdue"], -item["blocked"],
+            item["completion_rate"] or -1, item["name"].casefold(),
+        )
+    )
 
     teams = []
     for team_name in sorted({item["team"] for item in active_people.values()}):
@@ -272,7 +284,13 @@ def build_team_performance(
             "blocked": sum(item["blocked"] for item in assigned),
             "completion_rate": _ratio(completed, len(assigned)),
         })
-    teams.sort(key=lambda item: (item["completion_rate"] is None, -(item["completion_rate"] or 0), item["team"].casefold()))
+    teams.sort(
+        key=lambda item: (
+            item["completion_rate"] is None,
+            -(item["completion_rate"] or 0),
+            item["team"].casefold(),
+        )
+    )
 
     register: dict[str, dict[str, Any]] = {}
     for row in kpi_register_rows:
@@ -317,12 +335,19 @@ def build_team_performance(
             target = item["target"]
         actual = _number(_get(row, "kpi_actual"))
         direction = item["direction"]
-        lower_is_better = any(token in direction for token in ("lower", "decrease", "maximum", "max ", "at most", "reduce"))
+        lower_is_better = any(
+            token in direction
+            for token in ("lower", "decrease", "maximum", "max ", "at most", "reduce")
+        )
         attainment = None
         below_target = None
         if target is not None and actual is not None:
             if lower_is_better:
-                attainment = 100.0 if actual <= target else (round(target / actual * 100, 1) if actual else 100.0)
+                attainment = (
+                    100.0
+                    if actual <= target
+                    else round(target / actual * 100, 1) if actual else 100.0
+                )
                 below_target = actual > target
             elif target > 0:
                 attainment = round(actual / target * 100, 1)
@@ -352,7 +377,10 @@ def build_team_performance(
     overdue = sum(item["overdue"] for item in tasks)
     blocked = sum(item["blocked"] for item in tasks)
     due_known = sum(item["has_due_date"] for item in tasks)
-    followups = [item for item in tasks if item["overdue"] or item["blocked"] or item["stale_update"]]
+    followups = [
+        item for item in tasks
+        if item["overdue"] or item["blocked"] or item["stale_update"]
+    ]
     trend = []
     for offset in range(5, -1, -1):
         week_start = end_date - timedelta(days=end_date.weekday()) - timedelta(days=7 * offset)
@@ -378,7 +406,11 @@ def build_team_performance(
                 "totals; KPI week start."
             ),
         },
-        "filters": {"team": team_filter or None, "person": person_filter or None, "status": status_filter or None},
+        "filters": {
+            "team": team_filter or None,
+            "person": person_filter or None,
+            "status": status_filter or None,
+        },
         "summary": {
             "active_members": len(active_people),
             "tasks": len(tasks),
@@ -410,12 +442,22 @@ def build_team_performance(
             "counts": dict(sorted(quality.items())),
             "notes": [
                 "Task dates and KPI periods are interpreted from recognized header names only.",
-                "Tasks without a due date remain in workload/status totals but cannot be classified as overdue.",
-                "Outstanding overdue tasks remain visible even when their due date predates the selected reporting window.",
-                "A task is flagged for a stale update only when a recognized last-update date exists and is more than seven days old.",
+                (
+                    "Tasks without a due date remain in workload/status totals but cannot be "
+                    "classified as overdue."
+                ),
+                (
+                    "Outstanding overdue tasks remain visible even when their due date predates "
+                    "the selected reporting window."
+                ),
+                (
+                    "A task is flagged for a stale update only when a recognized last-update "
+                    "date exists and is more than seven days old."
+                ),
                 (
                     "KPI below-target classification requires numeric target and actual; direction "
-                    "is higher-is-better unless a direction column explicitly indicates lower-is-better."
+                    "is higher-is-better unless a direction column explicitly indicates "
+                    "lower-is-better."
                 ),
                 (
                     "The trend counts tasks by due date, or last-update date when no due date "
