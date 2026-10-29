@@ -19,15 +19,13 @@ from app.sheets.schema import SheetSchemaError, normalize_headers
 PROTECTED_FORMULA_FIELDS: dict[str, frozenset[str]] = {
     TASK_WORKSHEET: frozenset(
         {
-            "Status",
             "Assigned To ID",
             "Days To Deadline",
             "Remind Now?",
             "Escalate?",
-            "Achievement %",
         }
     ),
-    KPI_WORKSHEET: frozenset({"Achievement %"}),
+    KPI_WORKSHEET: frozenset({"Owner Person ID"}),
     WEEKLY_KPI_WORKSHEET: frozenset({"Target", "Achievement %"}),
 }
 RECORD_KEYS = {

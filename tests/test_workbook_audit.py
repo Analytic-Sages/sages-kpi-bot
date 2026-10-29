@@ -132,3 +132,49 @@ async def test_unknown_worksheet_schema_fails_closed():
     findings = await change_policy_findings(BrokenClient())
     assert len([item for item in findings if item.severity == "BLOCKER"]) == 3
     assert all("private workbook detail" not in item.message for item in findings)
+
+
+@pytest.mark.asyncio
+async def test_live_schema_does_not_require_unverified_achievement_headers():
+    headers = valid_headers()
+    assert "Achievement %" not in PROTECTED_FORMULA_FIELDS[TASK_WORKSHEET]
+    assert "Achievement %" not in PROTECTED_FORMULA_FIELDS["KPI Register"]
+    # Status is a Tier 1 dropdown field in the inspected workbook, not a
+    # formula-owned field. Formula cells in it are still blocked as writable.
+    assert "Status" not in PROTECTED_FORMULA_FIELDS[TASK_WORKSHEET]
+    client = FakeFormulaClient(headers, empty_rows())
+    findings = await change_policy_findings(client)
+    assert not any(
+        item.severity == "BLOCKER"
+        and item.component in {
+            "Master Task Tracker / mutation policy",
+            "KPI Register / mutation policy",
+        }
+        and "Achievement %" in item.message
+        for item in findings
+    )
+    assert not any(
+        item.component == f"{TASK_WORKSHEET} / formula ownership"
+        and "Status:" in item.message
+        for item in findings
+    )
+
+
+@pytest.mark.asyncio
+async def test_kpi_owner_person_id_is_protected_from_bot_writes():
+    headers = valid_headers()
+    rows = empty_rows()
+    rows["KPI Register"] = [
+        {
+            "KPI ID": "KPI001",
+            "Owner Person ID": '=IF(H2="", "", VLOOKUP(H2,People,1,FALSE))',
+        }
+    ]
+    client = FakeFormulaClient(headers, rows)
+    findings = await change_policy_findings(client)
+    assert any(
+        item.severity == "PASS"
+        and item.component == "KPI Register / formula ownership"
+        and "Owner Person ID: formula detected in 1 row(s)" in item.message
+        for item in findings
+    )

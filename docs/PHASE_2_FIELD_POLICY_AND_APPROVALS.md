@@ -27,7 +27,7 @@ The read-only audit is implemented in `app/change_requests/workbook_audit.py` an
 
 Human-managed fields include KPI name, Definition, Direction, Frequency, Unit, Data Source, Owner, `Active?`, Task ID, Task Name, Task Type, Team, Assigned By, Date Assigned, and all Weekly Review fields.
 
-Never write formula-owned grey-header columns, including Assigned To ID, Days To Deadline, Remind Now?, Achievement %, and formula-derived Status fields. Never write Person Digest, Dashboard, or Team Roster cells.
+Never write formula-owned grey-header columns, including Assigned To ID, Days To Deadline, Remind Now?, Escalate?, and formula-driven Owner Person ID values. The currently inspected Master Task Tracker uses a human-managed Status dropdown and a manually entered % Complete field; these are Tier 1 fields, not formula-owned. Keep Status changes fail-closed until the live authoritative cell and allowed dropdown values are verified. Do not require an Achievement % header in Master Task Tracker or KPI Register unless the workbook owner approves that schema explicitly. Never write Person Digest, Dashboard, or Team Roster cells.
 
 Bot-owned reminder-tracking columns (for example Last Reminded At, Reminder Count, and Snooze Until) are a separate service-only policy and are not exposed as user-editable fields.
 
