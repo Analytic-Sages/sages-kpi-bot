@@ -164,10 +164,12 @@ async def test_live_schema_does_not_require_unverified_achievement_headers():
 async def test_kpi_owner_person_id_is_protected_from_bot_writes():
     headers = valid_headers()
     rows = empty_rows()
+    rows["KPI Register"] = [
         {
             "KPI ID": "KPI001",
             "Owner Person ID": '=IF(H2="", "", VLOOKUP(H2,People,1,FALSE))',
         }
+    ]
     client = FakeFormulaClient(headers, rows)
     findings = await change_policy_findings(client)
     assert any(
