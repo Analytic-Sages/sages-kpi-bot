@@ -25,7 +25,7 @@ PROTECTED_FORMULA_FIELDS: dict[str, frozenset[str]] = {
             "Escalate?",
         }
     ),
-    KPI_WORKSHEET: frozenset(),
+    KPI_WORKSHEET: frozenset({"Owner Person ID"}),
     WEEKLY_KPI_WORKSHEET: frozenset({"Target", "Achievement %"}),
 }
 RECORD_KEYS = {
