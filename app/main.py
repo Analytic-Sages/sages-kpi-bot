@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.admin_api import create_admin_api_router
@@ -221,6 +221,22 @@ async def root() -> dict[str, str]:
         "environment": settings.app_env,
         "docs": "/docs",
     }
+
+
+@app.get("/privacy", tags=["legal"], include_in_schema=False)
+async def privacy_policy() -> FileResponse:
+    """Serve the public privacy policy required for OAuth app branding."""
+    policy_path = Path(__file__).resolve().parent / "static" / "privacy.html"
+    return FileResponse(
+        policy_path,
+        media_type="text/html",
+        headers={
+            "Cache-Control": "public, max-age=3600",
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "DENY",
+            "Referrer-Policy": "strict-origin-when-cross-origin",
+        },
+    )
 
 
 @app.get("/health/live", tags=["health"])

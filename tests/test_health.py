@@ -100,3 +100,13 @@ def test_telegram_health_is_healthy_when_polling_is_recent(monkeypatch):
     response = client.get("/health/telegram")
     assert response.status_code == 200
     assert response.json()["status"] == "healthy"
+
+
+def test_privacy_policy_is_public_and_contains_required_sections():
+    response = client.get("/privacy")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/html")
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert "Google User Data" in response.text
+    assert "Google API Services User Data Policy" in response.text
