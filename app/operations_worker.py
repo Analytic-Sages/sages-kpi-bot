@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from app.config import get_settings
 from app.operations_db import SessionLocal
-from app.operations_models import JobRun,KPI,KPIResult,Notification,Person,ReviewAction,Setting,Task,TaskReminderState,Team,WeeklyReview
+from app.operations_models import JobRun,Notification,Person,ReviewAction,Setting,Task,TaskReminderState,Team
 from app.operations_rules import reminder_decision,escalation_due
 from zoneinfo import ZoneInfo
 logging.basicConfig(level=os.getenv("LOG_LEVEL","INFO"));log=logging.getLogger("sageops.worker");settings=get_settings()
