@@ -9,6 +9,7 @@ from collections.abc import Generator
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
+from fastapi import HTTPException
 
 from app.config import get_settings
 
@@ -46,7 +47,7 @@ SessionLocal = sessionmaker(bind=_engine, autoflush=False, expire_on_commit=Fals
 
 def get_db() -> Generator[Session, None, None]:
     if SessionLocal is None:
-        raise RuntimeError("DATABASE_URL is not configured")
+        raise HTTPException(status_code=503, detail="PostgreSQL database is not configured")
     db = SessionLocal()
     try:
         yield db
