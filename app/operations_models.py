@@ -10,8 +10,20 @@ from datetime import date, datetime
 from decimal import Decimal
 
 from sqlalchemy import (
-    Boolean, CheckConstraint, Date, DateTime, ForeignKey, Index, Integer, JSON,
-    Numeric, String, Text, UniqueConstraint, func, text,
+    Boolean,
+    CheckConstraint,
+    Date,
+    DateTime,
+    ForeignKey,
+    func,
+    Index,
+    Integer,
+    JSON,
+    Numeric,
+    String,
+    Text,
+    text,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
