@@ -51,6 +51,7 @@ def test_kpi_directions_and_thresholds():
     assert kpi_achievement("Decrease", 0, 10) == Decimal("1")
     assert kpi_achievement("Maintain", 8, 10) == Decimal("0.8")
     assert kpi_achievement("Increase", 10, 0) is None
+    assert kpi_achievement("Maintain", 0, 0) is None
     assert kpi_status(Decimal("1")) == "On Track"
     assert kpi_status(Decimal("0.8")) == "At Risk"
     assert kpi_status(Decimal("0.79")) == "Off Track"
