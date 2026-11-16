@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from fastapi import Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-from app.admin_auth import require_admin
+from app.admin_auth import require_authenticated
 from app.operations_models import Person,Role,Team
 
 @dataclass(frozen=True)
@@ -16,7 +16,7 @@ class Actor:
     def person_id(self):return self.person.person_id if self.person else None
 
 def resolve_actor(request:Request,db:Session):
-    session=require_admin(request)
+    session=require_authenticated(request)
     if not session:return None
     email=str(session.get("email","")).casefold()
     admins={x.strip().casefold() for x in request.app.state.settings.admin_emails.split(",") if x.strip()}
