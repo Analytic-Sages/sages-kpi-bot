@@ -61,7 +61,6 @@ def test_importer_ignores_prefilled_ids_and_preserves_unassigned_team_kpis(tmp_p
         "tasks": 1,
         "weekly_kpi_results": 0,
         "weekly_reviews": 0,
-        "blockers": 0,
     }
     assert result["ready"] is True
     assert len(result["warnings"]) == 1
