@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from app.config import get_settings
 from app.operations_db import SessionLocal
-from app.operations_models import JobRun,Notification,Person,ReviewAction,Setting,Task,TaskReminderState,Team
+from app.operations_models import JobRun,KPI,KPIResult,Notification,Person,ReviewAction,Setting,Task,TaskReminderState,Team,WeeklyReview
 from app.operations_rules import reminder_decision,escalation_due
 from zoneinfo import ZoneInfo
 logging.basicConfig(level=os.getenv("LOG_LEVEL","INFO"));log=logging.getLogger("sageops.worker");settings=get_settings()
@@ -70,14 +70,35 @@ def scan_digests():
             due_today=sum(1 for t in tasks if t.deadline==today and t.status!="On Hold")
             due_soon=sum(1 for t in tasks if t.deadline and today<t.deadline<=today+timedelta(days=int(val(db,"due_soon_days",2))) and t.status!="On Hold")
             actions=db.scalars(select(ReviewAction).where(ReviewAction.owner_person_id==person.person_id,ReviewAction.status=="Open")).all()
-            attention=overdue+due_today+due_soon+len(actions)
+            week_start=today-timedelta(days=today.weekday())
+            weekly_kpis=db.scalars(select(KPI).where(KPI.owner_person_id==person.person_id,KPI.active.is_(True),KPI.frequency=="Weekly")).all()
+            logged_ids=set(db.scalars(select(KPIResult.kpi_id).where(KPIResult.kpi_id.in_([k.kpi_id for k in weekly_kpis]),KPIResult.period_start==week_start)).all()) if weekly_kpis else set()
+            missing_kpis=sum(1 for k in weekly_kpis if k.kpi_id not in logged_ids)
+            review_due=0
+            if person.team_id and local.weekday()>=5:
+                team=db.get(Team,person.team_id)
+                if team and team.lead_person_id==person.person_id:
+                    submitted=db.scalar(select(WeeklyReview.id).where(WeeklyReview.team_id==team.team_id,WeeklyReview.week_start==week_start))
+                    review_due=int(submitted is None)
+            attention=overdue+due_today+due_soon+len(actions)+missing_kpis+review_due
             if attention<=0:
                 continue
             message=(f"Your SageOps daily digest\nOpen tasks: {len(tasks)}\nOverdue: {overdue}\n"
-                     f"Due today: {due_today}\nDue soon: {due_soon}\nOpen review actions: {len(actions)}")
+                     f"Due today: {due_today}\nDue soon: {due_soon}\nOpen review actions: {len(actions)}\n"
+                     f"Weekly KPI check-ins missing: {missing_kpis}\nTeam weekly review due: {review_due}")
             if queue(db,person,"daily_digest",person.person_id,message,now):
                 person.last_digest_sent_at=now
                 queued+=1
+        # Remind team leads about the current weekly review on Saturday/Sunday.
+        if local.weekday()>=5:
+            week_start=today-timedelta(days=today.weekday())
+            teams=db.scalars(select(Team).where(Team.lead_person_id.is_not(None))).all()
+            for team in teams:
+                exists=db.scalar(select(WeeklyReview.id).where(WeeklyReview.team_id==team.team_id,WeeklyReview.week_start==week_start))
+                lead=db.get(Person,team.lead_person_id)
+                if not exists and lead:
+                    queued+=int(queue(db,lead,"weekly_review_due",team.team_id,
+                                      f"Weekly review due: please submit the {team.name} review for week starting {week_start}.",now))
         db.commit()
     return queued
 
