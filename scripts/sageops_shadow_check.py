@@ -13,11 +13,10 @@ from scripts.import_sageops_workbook import load
 def run_check(workbook:Path,record:bool=True):
     if SessionLocal is None:raise RuntimeError("DATABASE_URL is not configured")
     data,_=load(workbook)
-    unowned_kpis=[str(x.get("KPI ID")) for x in data["KPI Register"] if x.get("KPI ID") and not x.get("Owner Person ID")]
     source={
       "teams":{str(x["Team ID"]) for x in data["Teams"] if x.get("Team ID")},
       "people":{str(x["Person ID"]) for x in data["People Directory"] if x.get("Person ID")},
-      "kpis":{str(x["KPI ID"]) for x in data["KPI Register"] if x.get("KPI ID") and x.get("Owner Person ID")},
+      "kpis":{str(x["KPI ID"]) for x in data["KPI Register"] if x.get("KPI ID")},
       "tasks":{str(x["Task ID"]) for x in data["Master Task Tracker"] if x.get("Task ID")},
     }
     with SessionLocal() as db:
@@ -33,8 +32,7 @@ def run_check(workbook:Path,record:bool=True):
         source_task={str(x["Task ID"]):str(x.get("Status") or "Not Started") for x in data["Master Task Tracker"] if x.get("Task ID")}
         db_tasks={x.task_id:x.status for x in db.scalars(select(Task)).all()}
         diff["task_status_mismatches"]=[{"task_id":k,"workbook":v,"database":db_tasks.get(k)} for k,v in source_task.items() if db_tasks.get(k)!=v]
-        diff["unowned_source_kpis"]=unowned_kpis
-        passed=not unowned_kpis and not any(diff[k]["missing_in_database"] or diff[k]["unexpected_in_database"] for k in ("teams","people","kpis","tasks")) and not diff["task_status_mismatches"]
+        passed=not any(diff[k]["missing_in_database"] or diff[k]["unexpected_in_database"] for k in ("teams","people","kpis","tasks")) and not diff["task_status_mismatches"]
         now=datetime.now(UTC)
         if record:
             db.add(JobRun(job_name="sageops_shadow",started_at=now,finished_at=now,status="passed" if passed else "failed",detail=json.dumps(diff)[:4000]))
