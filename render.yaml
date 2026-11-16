@@ -84,6 +84,10 @@ projects:
                 value: "true"
               - key: OPERATIONS_WORKER_INTERVAL_SECONDS
                 value: "60"
+              - key: OPERATIONS_KPI_REMINDER_WEEKDAY
+                value: "4"
+              - key: OPERATIONS_REVIEW_REMINDER_WEEKDAY
+                value: "5"
               - key: TELEGRAM_TEST_MODE
                 value: "true"
               - key: TELEGRAM_BOT_TOKEN
