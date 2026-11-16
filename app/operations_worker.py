@@ -1,5 +1,6 @@
 """Standalone durable notification dispatcher. Run: python -m app.operations_worker."""
 from __future__ import annotations
+import argparse
 import asyncio
 import logging
 from datetime import UTC,datetime,timedelta
@@ -186,4 +187,32 @@ def recover_interrupted_deliveries():
         db.commit()
         return len(stale)
 
-if __name__=="__main__":asyncio.run(main())
+async def run_once():
+    """Execute exactly one scheduled worker cycle and exit."""
+    result = await run_cycle()
+    if result is None:
+        log.info("worker_once_skipped reason=another_worker_holds_lock")
+    else:
+        log.info(
+            "worker_once_completed recovered=%s queued=%s sent=%s",
+            result["recovered"],
+            result["queued"],
+            result["sent"],
+        )
+    return result
+
+
+def cli(argv: list[str] | None = None) -> None:
+    """CLI entry point; continuous mode remains the default for service deployments."""
+    parser = argparse.ArgumentParser(description="SageOps notification worker")
+    parser.add_argument(
+        "--once",
+        action="store_true",
+        help="process one scheduled cycle and exit (for GitHub Actions/cron)",
+    )
+    args = parser.parse_args(argv)
+    asyncio.run(run_once() if args.once else main())
+
+
+if __name__ == "__main__":
+    cli()
