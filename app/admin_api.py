@@ -16,6 +16,7 @@ from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
 
 from app.admin_auth import require_admin
+from app.operations_admin_adapter import team_performance as database_team_performance
 from app.analytics.team_performance import build_team_performance
 from app.audit.store import SQLiteAuditLog
 from app.sheets.client import GoogleSheetsClient, GoogleSheetsError
@@ -155,7 +156,6 @@ def create_admin_api_router() -> APIRouter:
         settings = request.app.state.settings
         if settings.operations_db_reads_enabled:
             try:
-                from app.operations_admin_adapter import team_performance as database_team_performance
                 return _json_response(database_team_performance(
                     today=today, start_date=effective_start, end_date=effective_end,
                     team_filter=team, person_filter=person, status_filter=status,
