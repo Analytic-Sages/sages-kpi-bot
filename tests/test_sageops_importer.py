@@ -297,7 +297,8 @@ def test_config_import_ignores_instruction_rows_and_reports_worker_unused_settin
         for item in result["warnings"]
     )
     assert "workbook.Blue on yellow = you edit it. Grey = automatic." not in expected
-    assert "manager_chat_id" in result["runtime_setting_review"]["not_read_by_operations_worker"]
+    assert "workbook.Cfg_ManagerChatID" in result["runtime_setting_review"]["not_read_by_operations_worker"]
+    assert "workbook.Cfg_ManagerChatID" in result["runtime_setting_review"]["retained_as_workbook_reference"]
     assert "timezone" in result["runtime_setting_review"]["worker_consumed"]
 
 
