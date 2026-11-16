@@ -87,9 +87,17 @@ def _decode_session(request: Request, settings: Settings) -> dict[str, Any] | No
     return payload
 
 
-def require_admin(request: Request) -> dict[str, Any] | None:
-    """Return the authenticated allowlisted session or None."""
+def require_authenticated(request: Request) -> dict[str, Any] | None:
+    """Return any signed OIDC session, including an active directory staff session."""
     return _decode_session(request, request.app.state.settings)
+
+
+def require_admin(request: Request) -> dict[str, Any] | None:
+    """Return an allowlisted administrator session; staff sessions cannot use admin routes."""
+    session = _decode_session(request, request.app.state.settings)
+    if session is None or session.get("staff_identity") is True:
+        return None
+    return session
 
 
 def create_admin_auth_router(settings: Settings) -> APIRouter:
