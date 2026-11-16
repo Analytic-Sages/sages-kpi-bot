@@ -50,7 +50,11 @@ projects:
                 value: "true"
               - key: TELEGRAM_TEST_MODE
                 value: "true"
+              - key: DRY_RUN
+                value: "true"
               - key: TELEGRAM_BOT_TOKEN
+                sync: false
+              - key: TELEGRAM_WEBHOOK_SECRET
                 sync: false
               - key: SENTRY_DSN
                 sync: false
