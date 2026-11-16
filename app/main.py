@@ -20,6 +20,7 @@ from app.logging_config import configure_logging
 from app.operations_api import create_operations_router
 from app.operations_write_api import create_operations_write_router
 from app.operations_telegram_api import create_operations_telegram_router
+from app.operations_management_api import create_operations_management_router
 from app.preflight import sheet_findings
 from app.preflight_rows import row_integrity_findings
 from app.scheduled.workflows import ScheduledWorkflowService, build_scheduler
@@ -196,6 +197,7 @@ app.include_router(create_admin_records_router())
 app.include_router(create_operations_router())
 app.include_router(create_operations_write_router())
 app.include_router(create_operations_telegram_router())
+app.include_router(create_operations_management_router())
 app.mount(
     "/control",
     StaticFiles(directory=Path(__file__).resolve().parent / "static" / "admin", html=True),
