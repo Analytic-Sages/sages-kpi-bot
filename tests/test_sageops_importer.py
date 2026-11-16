@@ -247,3 +247,25 @@ def test_import_preserves_task_reminder_state_and_never_enables_bot(tmp_path, mo
         assert settings["bot_enabled"] is False
         assert settings["workbook.Cfg_BotEnabled_requested"] is True
     engine.dispose()
+
+
+
+def test_expected_settings_uses_importer_mapping_and_skips_blank_config_rows(tmp_path):
+    path = tmp_path / "tracker.xlsx"
+    make_workbook(path)
+    workbook = __import__("openpyxl").load_workbook(path)
+    config = workbook["Config"]
+    config.append([None, None, None])
+    config.append(["Cfg_DueSoonDays", 2, "Due soon window"])
+    workbook["Lists"].append([None, None])
+    workbook.save(path)
+
+    data, _ = importer.load(path)
+    expected = importer.expected_settings(data)
+
+    assert len(data["Config"]) == 3
+    assert expected["bot_enabled"] is False
+    assert expected["workbook.Cfg_BotEnabled_requested"] is False
+    assert expected["timezone"] == "Africa/Lagos"
+    assert expected["due_soon_days"] == 2
+    assert expected["workbook_lists"]["Task Status"] == ["Not Started", "In Progress"]
