@@ -1,11 +1,11 @@
-from logging.config import fileConfig
 import os
+from logging.config import fileConfig
 
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-from app.operations_db import Base, normalize_database_url
 from app import operations_models  # noqa: F401
+from app.operations_db import Base, normalize_database_url
 
 config = context.config
 if config.config_file_name is not None:
