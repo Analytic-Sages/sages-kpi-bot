@@ -82,6 +82,7 @@ def test_reconciliation_preserves_unassigned_team_kpis_and_checks_references(tmp
         "weekly_kpi_results": 1, "tasks": 1, "weekly_review_rows": 1,
         "blockers": 1, "reminder_history": 1, "config_entries": 2,
         "list_configuration_columns": 2,
+        "ignored_config_rows": 0,
     }
     assert sum(x["issue"] == "unassigned_team_kpi" for x in result["warnings"]) == 1
     assert result["issues"] == []
