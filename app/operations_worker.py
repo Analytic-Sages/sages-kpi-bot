@@ -21,6 +21,23 @@ if settings.sentry_dsn:
                     send_default_pii=False)
 def val(db,key,default):
     row=db.get(Setting,key);return row.value if row else default
+
+def _clock(value, default):
+    """Parse a stored HH:MM setting without allowing malformed settings to crash the worker."""
+    from datetime import time
+    try:
+        hour, minute = str(value).strip().split(":", 1)
+        return time(int(hour), int(minute))
+    except (TypeError, ValueError):
+        return default
+
+def quiet_window(db):
+    from datetime import time
+    return (
+        _clock(val(db, "quiet_hours_start", "20:00"), time(20, 0)),
+        _clock(val(db, "quiet_hours_end", "07:00"), time(7, 0)),
+    )
+
 def queue(db,p,kind,ref,message,at):
     if not p or not p.telegram_chat_id or not p.notify:return False
     item=Notification(person_id=p.person_id,chat_id=p.telegram_chat_id,type=kind,reference_id=ref,message=message,dedupe_key=f"{kind}:{ref}:{p.person_id}:{at.date()}",available_at=at)
@@ -37,20 +54,29 @@ def scan():
     with SessionLocal() as db:
         if not val(db,"bot_enabled",False):return 0
         tz=val(db,"timezone","Africa/Lagos");today=now.astimezone(ZoneInfo(tz)).date()
+        quiet_start, quiet_end = quiet_window(db)
         tasks=db.scalars(select(Task).where(Task.status.notin_({"Completed","Cancelled","Closed","On Hold"}))).all()
         for t in tasks:
             p=db.get(Person,t.assigned_to) if t.assigned_to else None
             if not p:continue
             s=db.get(TaskReminderState,t.task_id)
-            d=reminder_decision(status=t.status,deadline=t.deadline,assigned_to=t.assigned_to,person_active=p.status=="Active",notify=p.notify,chat_id=p.telegram_chat_id,snooze_until=t.snooze_until,last_reminded_at=s.last_reminded_at if s else None,now=now,timezone=tz,due_soon_days=int(val(db,"due_soon_days",2)),cooldown_hours=int(val(db,"reminder_cooldown_hours",20)))
-            if not d.eligible or not d.send_after:continue
-            notification_type={"OVERDUE":"task_overdue","DUE_TODAY":"task_due_today","DUE_SOON":"task_due_soon"}[d.reminder_type]
-            count+=int(queue(db,p,notification_type,t.task_id,f"Task {d.reminder_type.replace('_',' ').lower()}: {t.name}\nStatus: {t.status}\nDeadline: {t.deadline or 'Not set'}",d.send_after))
-            if s is None:s=TaskReminderState(task_id=t.task_id);db.add(s)
-            s.last_reminded_at=now;s.reminder_count=(s.reminder_count or 0)+1
-            if t.deadline and escalation_due(deadline=t.deadline,status=t.status,today=today,last_escalated_at=s.last_escalated_at,now=now,escalate_after_days=int(val(db,"escalate_after_days",3)),cooldown_hours=int(val(db,"escalation_cooldown_hours",44))):
+            d=reminder_decision(status=t.status,deadline=t.deadline,assigned_to=t.assigned_to,person_active=p.status=="Active",notify=p.notify,chat_id=p.telegram_chat_id,snooze_until=t.snooze_until,last_reminded_at=s.last_reminded_at if s else None,now=now,timezone=tz,due_soon_days=int(val(db,"due_soon_days",2)),cooldown_hours=int(val(db,"reminder_cooldown_hours",20)),quiet_start=quiet_start,quiet_end=quiet_end)
+            if d.eligible and d.send_after:
+                notification_type={"OVERDUE":"task_overdue","DUE_TODAY":"task_due_today","DUE_SOON":"task_due_soon"}[d.reminder_type]
+                queued = queue(db,p,notification_type,t.task_id,f"Task {d.reminder_type.replace('_',' ').lower()}: {t.name}\nStatus: {t.status}\nDeadline: {t.deadline or 'Not set'}",d.send_after)
+                count += int(queued)
+                if queued:
+                    if s is None:s=TaskReminderState(task_id=t.task_id);db.add(s)
+                    s.last_reminded_at=now;s.reminder_count=(s.reminder_count or 0)+1
+            # Escalation has its own cooldown and must not depend on whether the
+            # assignee reminder is currently eligible or has already been queued.
+            if t.deadline and escalation_due(deadline=t.deadline,status=t.status,today=today,last_escalated_at=s.last_escalated_at if s else None,now=now,escalate_after_days=int(val(db,"escalate_after_days",3)),cooldown_hours=int(val(db,"escalation_cooldown_hours",44))):
                 team=db.get(Team,t.team_id);lead=db.get(Person,team.lead_person_id) if team and team.lead_person_id else None
-                if lead:count+=int(queue(db,lead,"task_escalation",t.task_id,f"Escalation: {t.name} ({t.task_id}) remains overdue.",d.send_after));s.last_escalated_at=now
+                escalation_at=next_allowed_send(now,timezone=tz,quiet_start=quiet_start,quiet_end=quiet_end)
+                if lead and queue(db,lead,"task_escalation",t.task_id,f"Escalation: {t.name} ({t.task_id}) remains overdue.",escalation_at):
+                    count+=1
+                    if s is None:s=TaskReminderState(task_id=t.task_id);db.add(s)
+                    s.last_escalated_at=now
         db.commit()
     return count
 def scan_digests():
@@ -65,8 +91,10 @@ def scan_digests():
         tz=val(db,"timezone","Africa/Lagos")
         local=now.astimezone(ZoneInfo(tz))
         hour,minute=(str(val(db,"digest_time","08:00")).split(":")+["0"])[:2]
-        if (local.hour,local.minute)<(int(hour),int(minute)) or local.hour>=20:
+        if (local.hour,local.minute)<(int(hour),int(minute)):
             return 0
+        quiet_start, quiet_end = quiet_window(db)
+        send_at = next_allowed_send(now, timezone=tz, quiet_start=quiet_start, quiet_end=quiet_end)
         today=local.date()
         people=db.scalars(select(Person).where(Person.status=="Active",Person.notify.is_(True),Person.telegram_chat_id.is_not(None))).all()
         for person in people:
@@ -93,7 +121,7 @@ def scan_digests():
             message=(f"Your SageOps daily digest\nOpen tasks: {len(tasks)}\nOverdue: {overdue}\n"
                      f"Due today: {due_today}\nDue soon: {due_soon}\nOpen review actions: {len(actions)}\n"
                      f"Weekly KPI check-ins missing: {missing_kpis}\nTeam weekly review due: {review_due}")
-            if queue(db,person,"daily_digest",person.person_id,message,now):
+            if queue(db,person,"daily_digest",person.person_id,message,send_at):
                 person.last_digest_sent_at=now
                 queued+=1
         # Remind team leads about the current weekly review on Saturday/Sunday.
@@ -105,7 +133,7 @@ def scan_digests():
                 lead=db.get(Person,team.lead_person_id)
                 if not exists and lead:
                     queued+=int(queue(db,lead,"weekly_review_due",team.team_id,
-                                      f"Weekly review due: please submit the {team.name} review for week starting {week_start}.",next_allowed_send(now,timezone=tz)))
+                                      f"Weekly review due: please submit the {team.name} review for week starting {week_start}.",next_allowed_send(now,timezone=tz,quiet_start=quiet_start,quiet_end=quiet_end)))
         db.commit()
     return queued
 
