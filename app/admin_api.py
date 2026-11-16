@@ -135,6 +135,19 @@ def create_admin_api_router() -> APIRouter:
                 {"detail": "start_date must be on or before end_date"}, status_code=422
             )
         settings = request.app.state.settings
+        if settings.operations_db_reads_enabled:
+            try:
+                from app.operations_admin_adapter import team_performance as database_team_performance
+                return _json_response(database_team_performance(
+                    today=today, start_date=effective_start, end_date=effective_end,
+                    team_filter=team, person_filter=person, status_filter=status,
+                ))
+            except Exception:
+                logger.warning("admin_team_performance_failed reason=database_unavailable")
+                return _json_response(
+                    {"detail": "Team performance data is temporarily unavailable. Check PostgreSQL connectivity."},
+                    status_code=503,
+                )
         if not settings.google_sheet_id:
             return _json_response(
                 {"detail": "Google Sheets is not configured"}, status_code=503
