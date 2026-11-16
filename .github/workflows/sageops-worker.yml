@@ -1,10 +1,8 @@
 name: SageOps Scheduled Operations Worker
 
 on:
-  # Scheduled workflows run from the repository's default branch.
-  # Five-minute polling is sufficient for the current reminder and digest SLA.
-  schedule:
-    - cron: "*/5 * * * *"
+  # Render's dedicated worker is the sole continuous scheduler. This workflow
+  # remains a guarded, operator-triggered diagnostic run to avoid duplicate polling.
   workflow_dispatch:
 
 permissions:

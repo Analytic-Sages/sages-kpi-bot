@@ -66,3 +66,38 @@ def test_digest_once_per_local_day_after_configured_time():
     assert not digest_due(now=now, digest_time=time(10), timezone="Africa/Lagos",
                           last_digest_sent_at=None, attention_count=1,
                           person_active=True, notify=True, chat_id="123")
+
+
+def test_reminder_decision_uses_configured_quiet_window():
+    now = datetime(2026, 11, 16, 21, 0, tzinfo=UTC)
+    result = reminder_decision(
+        status="In Progress",
+        deadline=date(2026, 11, 15),
+        assigned_to="P1",
+        person_active=True,
+        notify=True,
+        chat_id="123",
+        snooze_until=None,
+        last_reminded_at=None,
+        now=now,
+        timezone="UTC",
+        quiet_start=time(22, 0),
+        quiet_end=time(6, 0),
+    )
+    assert result.eligible
+    assert result.send_after == now
+    deferred = reminder_decision(
+        status="In Progress",
+        deadline=date(2026, 11, 15),
+        assigned_to="P1",
+        person_active=True,
+        notify=True,
+        chat_id="123",
+        snooze_until=None,
+        last_reminded_at=None,
+        now=datetime(2026, 11, 16, 23, 0, tzinfo=UTC),
+        timezone="UTC",
+        quiet_start=time(22, 0),
+        quiet_end=time(6, 0),
+    )
+    assert deferred.send_after == datetime(2026, 11, 17, 6, 0, tzinfo=UTC)

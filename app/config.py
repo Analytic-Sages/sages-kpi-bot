@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     telegram_core_chat_id: str | None = None
     operations_notifications_enabled: bool = False
     operations_worker_interval_seconds: int = Field(default=60, ge=15, le=3600)
+    operations_kpi_reminder_weekday: int = Field(default=4, ge=0, le=6)
+    operations_review_reminder_weekday: int = Field(default=5, ge=0, le=6)
     telegram_test_mode: bool = True
 
     admin_google_client_id: str | None = None
