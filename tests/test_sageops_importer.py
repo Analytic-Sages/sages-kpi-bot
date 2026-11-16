@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime, timezone
 
 import pytest
 from openpyxl import Workbook
@@ -9,7 +9,7 @@ from sqlalchemy.pool import StaticPool
 from app.operations_db import Base
 from app.operations_models import (
     Blocker, KPI, KPIResult, Notification, NotificationAttempt, Person, ReviewAction,
-    Setting, Task, TaskDetail, Team, WeeklyReview,
+    JobRun, Setting, Task, TaskDetail, Team, WeeklyReview,
 )
 from scripts import import_sageops_workbook as importer
 
@@ -161,3 +161,42 @@ def test_reconciliation_blocks_invalid_reference(tmp_path):
     result = importer.report(data)
     assert result["ready"] is False
     assert any(item["issue"] == "unknown_person_reference" for item in result["issues"])
+
+def test_import_preserves_existing_worker_runs_and_allows_empty_business_import(tmp_path, monkeypatch):
+    path = tmp_path / "tracker.xlsx"
+    make_workbook(path)
+    data, _ = importer.load(path)
+    engine = create_engine(
+        "sqlite+pysqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(engine)
+    sessions = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+    monkeypatch.setattr(importer, "SessionLocal", sessions)
+
+    worker_started = datetime(2026, 11, 16, 18, 2, 5, tzinfo=timezone.utc)
+    with sessions() as db:
+        db.add(JobRun(
+            job_name="reminder_dispatch",
+            started_at=worker_started,
+            finished_at=datetime(2026, 11, 16, 18, 2, 6, tzinfo=timezone.utc),
+            status="success",
+            detail="recovered=0;queued=0;sent=0",
+        ))
+        db.commit()
+
+    imported = importer.apply(data)
+
+    with sessions() as db:
+        worker_runs = db.scalars(select(JobRun)).all()
+        assert len(worker_runs) == 2
+        preserved = next(run for run in worker_runs if run.job_name == "reminder_dispatch")
+        assert preserved.started_at == worker_started
+        assert preserved.status == "success"
+        assert preserved.detail == "recovered=0;queued=0;sent=0"
+        assert db.get(Team, "TM001") is not None
+
+    assert imported["teams"] == 1
+    engine.dispose()
+
