@@ -49,8 +49,16 @@ app = FastAPI(
     description="Staff operations platform for Analytic Sages, backed by PostgreSQL.",
     version="0.2.0",
     lifespan=lifespan,
+    docs_url=None if settings.app_env == "production" else "/docs",
+    redoc_url=None if settings.app_env == "production" else "/redoc",
+    openapi_url=None if settings.app_env == "production" else "/openapi.json",
 )
 app.state.settings = settings
+if settings.sentry_dsn:
+    import sentry_sdk
+
+    sentry_sdk.init(dsn=settings.sentry_dsn, environment=settings.app_env, traces_sample_rate=0.05,
+                    send_default_pii=False)
 app.include_router(create_admin_auth_router(settings))
 app.include_router(create_admin_api_router())
 app.include_router(create_admin_records_router())

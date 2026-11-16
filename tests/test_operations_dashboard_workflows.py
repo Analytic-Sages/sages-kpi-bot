@@ -12,7 +12,7 @@ from app.operations_api import create_operations_router
 from app.operations_db import get_db
 from app.operations_directory_api import create_operations_directory_router
 from app.operations_management_api import create_operations_management_router
-from app.operations_models import Base, Person, Role, RolePermission, Team
+from app.operations_models import Base, Notification, Person, Role, RolePermission, Team
 from app.operations_write_api import create_operations_write_router
 
 
@@ -50,8 +50,8 @@ def ops_env():
         db.flush()
         db.add(RolePermission(role_id="ROLE-M", permission="team.manage"))
         db.add_all([
-            Person(person_id="P-M", full_name="Manager One", email="manager@example.com", team_id="TEAM-A", role_id="ROLE-M", status="Active"),
-            Person(person_id="P-S", full_name="Staff One", email="staff@example.com", team_id="TEAM-A", role_id="ROLE-S", status="Active"),
+            Person(person_id="P-M", full_name="Manager One", email="manager@example.com", team_id="TEAM-A", role_id="ROLE-M", status="Active", telegram_chat_id="chat-manager"),
+            Person(person_id="P-S", full_name="Staff One", email="staff@example.com", team_id="TEAM-A", role_id="ROLE-S", status="Active", telegram_chat_id="chat-staff"),
         ])
     def client(email="manager@example.com", staff=True):
         test_client = TestClient(app)
@@ -179,6 +179,8 @@ def test_task_review_blocker_and_approval_workflows(ops_env):
     assert {"task","weekly_review","change_request"}.issubset({event["entity"] for event in audit})
     with factory() as db:
         assert db.get(Team, "TEAM-A")
+        assert db.query(Notification).filter_by(type="task_assignment", person_id="P-S").count() == 1
+        assert db.query(Notification).filter_by(type="task_assignment", person_id="P-M").count() == 1
 
 
 def test_mutations_require_csrf_and_team_scope(ops_env):

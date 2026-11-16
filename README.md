@@ -27,6 +27,24 @@ Set `DATABASE_URL` and authentication settings through the local ignored `.env` 
 
 The web process does not poll Telegram or run an in-process scheduler. Telegram updates use the authenticated webhook endpoint. Operational state, audit events, task/KPI records and delivery attempts are stored in PostgreSQL.
 
+`TELEGRAM_TEST_MODE=true` simulates delivery and records it as `Simulated` without opening a network connection to Telegram. Live delivery requires explicitly setting it to `false`, disabling `DRY_RUN`, enabling notifications and configuring the bot token. Worker reminder scans use a PostgreSQL advisory lock; delivery rows use `FOR UPDATE SKIP LOCKED`, unique dedupe keys, bounded retries and stale-send recovery.
+
+## Backups and recovery
+
+The staging Render Blueprint provisions PostgreSQL 17, separate web and worker services, and a daily backup job. The backup job writes encrypted custom-format `pg_dump` files to a private S3 bucket and removes objects older than `BACKUP_RETENTION_DAYS` (30 days by default). Configure the S3 bucket, region, and a restricted bucket-scoped access key through the hosting secret manager. Enable bucket versioning and block public access. Paid Render Postgres also provides provider-managed point-in-time recovery; its recovery window depends on the Render workspace plan.
+
+To test a backup, download a dump from the private bucket and restore it only into a separate empty database:
+
+```bash
+DATABASE_URL='postgresql://source-user:...@source-host/source-db' \
+RESTORE_TARGET_DATABASE_URL='postgresql://restore-user:...@restore-host/restore-db' \
+python -m app.restore_postgres /secure/path/sageops.dump
+```
+
+The restore command refuses the same host, port and database as the configured source. Validate the restored Alembic revision, row counts, health endpoint and representative dashboard records before using that instance. Recovery readiness is not verified until this command succeeds against a separate hosted database.
+
+For schema rollback, review the target revision's Alembic `downgrade()` before running `alembic downgrade <revision>`; prefer a forward corrective migration when data could be lost. For an application release rollback, redeploy the provider's previous successful deploy artifact, then verify `/health/ready`. Database restores and migrations against production require explicit approval.
+
 ## Workbook migration
 
 Create a reconciliation report before applying an import:

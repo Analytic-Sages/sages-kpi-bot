@@ -1,0 +1,117 @@
+projects:
+  - name: SageOps
+    environments:
+      - name: staging
+        databases:
+          - name: sageops-staging-db
+            plan: 0.5c-1g
+            region: oregon
+            postgresMajorVersion: "17"
+            databaseName: sageops_staging
+            user: sageops_app
+            diskSizeGB: 15
+        services:
+          - type: web
+            name: sageops-staging-web
+            runtime: docker
+            dockerfilePath: ./Dockerfile
+            dockerContext: .
+            region: oregon
+            plan: 0.5c-512mb
+            autoDeployTrigger: off
+            preDeployCommand: alembic upgrade head
+            healthCheckPath: /health/ready
+            envVars:
+              - key: APP_NAME
+                value: SageOps
+              - key: APP_ENV
+                value: staging
+              - key: LOG_LEVEL
+                value: INFO
+              - key: DATABASE_URL
+                fromDatabase:
+                  name: sageops-staging-db
+                  property: connectionString
+              - key: OPERATIONS_DB_WRITES_ENABLED
+                value: "true"
+              - key: ADMIN_GOOGLE_CLIENT_ID
+                sync: false
+              - key: ADMIN_GOOGLE_CLIENT_SECRET
+                sync: false
+              - key: ADMIN_GOOGLE_REDIRECT_URI
+                sync: false
+              - key: ADMIN_EMAILS
+                sync: false
+              - key: ADMIN_SESSION_SECRET
+                generateValue: true
+              - key: ADMIN_COOKIE_SECURE
+                value: "true"
+              - key: OPERATIONS_NOTIFICATIONS_ENABLED
+                value: "true"
+              - key: TELEGRAM_TEST_MODE
+                value: "true"
+              - key: TELEGRAM_BOT_TOKEN
+                sync: false
+              - key: SENTRY_DSN
+                sync: false
+          - type: worker
+            name: sageops-staging-worker
+            runtime: docker
+            dockerfilePath: ./Dockerfile
+            dockerContext: .
+            dockerCommand: python -m app.operations_worker
+            region: oregon
+            plan: 0.5c-512mb
+            autoDeployTrigger: off
+            envVars:
+              - key: APP_NAME
+                value: SageOps
+              - key: APP_ENV
+                value: staging
+              - key: LOG_LEVEL
+                value: INFO
+              - key: DATABASE_URL
+                fromDatabase:
+                  name: sageops-staging-db
+                  property: connectionString
+              - key: OPERATIONS_DB_WRITES_ENABLED
+                value: "true"
+              - key: OPERATIONS_NOTIFICATIONS_ENABLED
+                value: "true"
+              - key: OPERATIONS_WORKER_INTERVAL_SECONDS
+                value: "60"
+              - key: TELEGRAM_TEST_MODE
+                value: "true"
+              - key: TELEGRAM_BOT_TOKEN
+                sync: false
+              - key: DRY_RUN
+                value: "true"
+              - key: SENTRY_DSN
+                sync: false
+          - type: cron
+            name: sageops-staging-backup
+            runtime: docker
+            dockerfilePath: ./Dockerfile
+            dockerContext: .
+            dockerCommand: python -m app.backup_postgres
+            region: oregon
+            plan: 0.5c-512mb
+            autoDeployTrigger: off
+            schedule: "0 3 * * *"
+            envVars:
+              - key: APP_ENV
+                value: staging
+              - key: DATABASE_URL
+                fromDatabase:
+                  name: sageops-staging-db
+                  property: connectionString
+              - key: BACKUP_S3_BUCKET
+                sync: false
+              - key: AWS_REGION
+                value: us-east-1
+              - key: AWS_ACCESS_KEY_ID
+                sync: false
+              - key: AWS_SECRET_ACCESS_KEY
+                sync: false
+              - key: BACKUP_RETENTION_DAYS
+                value: "30"

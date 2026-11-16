@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     telegram_core_chat_id: str | None = None
     operations_notifications_enabled: bool = False
     operations_worker_interval_seconds: int = Field(default=60, ge=15, le=3600)
+    telegram_test_mode: bool = True
 
     admin_google_client_id: str | None = None
     admin_google_client_secret: str | None = None
@@ -30,6 +31,7 @@ class Settings(BaseSettings):
     admin_emails: str = ""
     admin_session_secret: str | None = None
     admin_cookie_secure: bool = True
+    sentry_dsn: str | None = None
 
     preflight_token: str | None = None
     enable_webhooks: bool = False

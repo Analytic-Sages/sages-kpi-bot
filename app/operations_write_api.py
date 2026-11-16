@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from app.admin_auth import require_authenticated
 from app.operations_access import can_access_team,has_team_permission,is_manager,require_csrf,resolve_actor
 from app.operations_db import get_db
-from app.operations_models import AuditLog,ChangeRequest,KPI,KPIResult,Person,ReviewAction,Task,Team,WeeklyReview
+from app.operations_models import AuditLog,ChangeRequest,KPI,KPIResult,Notification,Person,ReviewAction,Task,Team,WeeklyReview
 
 class TaskCreate(BaseModel):
     task_id:str|None=None
@@ -90,6 +90,12 @@ def create_operations_write_router():
         return actor,session,None
     def log(db,actor,entity,eid,field,old,new,outcome="APPLIED",rid=None,approver=None):
         db.add(AuditLog(actor=actor,approver=approver,entity=entity,entity_id=str(eid),field=field,old=old,new=new,outcome=outcome,request_id=rid))
+    def assignment_notice(db,task,person_id):
+        person=db.get(Person,person_id) if person_id else None
+        if not person or not person.notify or not person.telegram_chat_id:return
+        db.add(Notification(person_id=person.person_id,chat_id=person.telegram_chat_id,type="task_assignment",
+            reference_id=task.task_id,message=f"Task assigned: {task.name}\nPriority: {task.priority}\nDeadline: {task.deadline or 'Not set'}",
+            dedupe_key=f"task_assignment:{task.task_id}:{person.person_id}:{task.version}"))
     @router.post("/tasks",status_code=201)
     def create_task(p:TaskCreate,request:Request,db:Session=Depends(get_db)):
         a,_,err=auth(request,db)
@@ -106,7 +112,7 @@ def create_operations_write_router():
         tid=p.task_id or "TSK-"+uuid.uuid4().hex[:10].upper()
         if db.get(Task,tid):return JSONResponse(status_code=409,content={"detail":"Task ID already exists"})
         t=Task(task_id=tid,name=p.name.strip(),task_type=p.task_type,team_id=p.team_id,assigned_to=p.assigned_to,assigned_by=a.person_id,reviewer=p.reviewer,priority=p.priority,date_assigned=p.date_assigned or date.today(),deadline=p.deadline,status="Not Started",percent_complete=0)
-        db.add(t);log(db,a.person_id,"task",tid,"created",None,{"name":t.name,"team_id":t.team_id,"assigned_to":t.assigned_to,"priority":t.priority,"deadline":t.deadline.isoformat() if t.deadline else None});db.commit()
+        db.add(t);db.flush();assignment_notice(db,t,t.assigned_to);log(db,a.person_id,"task",tid,"created",None,{"name":t.name,"team_id":t.team_id,"assigned_to":t.assigned_to,"priority":t.priority,"deadline":t.deadline.isoformat() if t.deadline else None});db.commit()
         return {"item":{"id":tid,"version":t.version}}
     @router.patch("/tasks/{task_id}")
     def patch_task(task_id:str,p:TaskPatch,request:Request,db:Session=Depends(get_db)):
@@ -130,10 +136,14 @@ def create_operations_write_router():
             assignee=db.get(Person,changes["assigned_to"])
             if not assignee or assignee.status!="Active" or assignee.team_id!=t.team_id:return JSONResponse(status_code=422,content={"detail":"Assignee must be active and belong to the task team"})
         if changes.get("status")=="Completed" and changes.get("percent_complete",t.percent_complete)!=100:return JSONResponse(status_code=422,content={"detail":"Completed tasks must be 100 percent complete"})
+        old_assignee=t.assigned_to
         for k,v in changes.items():
             old=getattr(t,k);setattr(t,k,v);log(db,a.person_id,"task",task_id,k,old.isoformat() if isinstance(old,date) else old,v.isoformat() if isinstance(v,date) else v)
         if changes.get("status")=="Completed":t.percent_complete=100;t.completed_at=datetime.now(UTC)
-        t.version+=1;db.commit()
+        t.version+=1
+        if changes.get("assigned_to") and changes["assigned_to"]!=old_assignee:
+            assignment_notice(db,t,changes["assigned_to"])
+        db.commit()
         return {"item":{"id":task_id,"version":t.version,"updated":list(changes)}}
     @router.post("/kpis/{kpi_id}/results",status_code=201)
     def add_result(kpi_id:str,p:KPIResultInput,request:Request,db:Session=Depends(get_db)):

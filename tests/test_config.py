@@ -10,6 +10,7 @@ def test_defaults_are_safe_for_local_development():
     assert settings.dry_run is True
     assert settings.operations_db_writes_enabled is False
     assert settings.operations_notifications_enabled is False
+    assert settings.telegram_test_mode is True
     assert settings.timezone == "Africa/Lagos"
     assert settings.telegram_bot_token is None
 
