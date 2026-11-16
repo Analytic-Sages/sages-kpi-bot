@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel,ConfigDict,Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-from app.admin_auth import require_admin
+from app.admin_auth import require_authenticated
 from app.operations_access import can_access_team,is_manager,require_csrf,resolve_actor
 from app.operations_db import get_db
 from app.operations_models import AuditLog,ChangeRequest,KPI,KPIResult,Person,ReviewAction,Task,WeeklyReview
@@ -60,7 +60,7 @@ class ChangeInput(BaseModel):
 def create_operations_write_router():
     router=APIRouter(prefix="/api/v1/operations",tags=["operations-write"])
     def auth(request,db):
-        session=require_admin(request)
+        session=require_authenticated(request)
         if not session:return None,None,JSONResponse(status_code=401,content={"detail":"Authentication required"})
         if not request.app.state.settings.operations_db_writes_enabled:
             return None,None,JSONResponse(status_code=503,content={"detail":"PostgreSQL writes are disabled until cutover approval"})
