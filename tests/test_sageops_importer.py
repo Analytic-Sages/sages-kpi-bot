@@ -192,7 +192,7 @@ def test_import_preserves_existing_worker_runs_and_allows_empty_business_import(
         worker_runs = db.scalars(select(JobRun)).all()
         assert len(worker_runs) == 2
         preserved = next(run for run in worker_runs if run.job_name == "reminder_dispatch")
-        assert preserved.started_at == worker_started
+        assert preserved.started_at.replace(tzinfo=timezone.utc) == worker_started
         assert preserved.status == "success"
         assert preserved.detail == "recovered=0;queued=0;sent=0"
         assert db.get(Team, "TM001") is not None
