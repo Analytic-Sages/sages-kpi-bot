@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     port: int = Field(default=8000, ge=1, le=65535)
     timezone: str = "Africa/Lagos"
     database_url: str | None = None
+    operations_db_reads_enabled: bool = False
 
     telegram_bot_token: str | None = None
     telegram_public_chat_id: str | None = None
