@@ -251,7 +251,7 @@ def create_admin_auth_router(settings: Settings) -> APIRouter:
 
     @router.get("/admin/session")
     async def admin_session(request: Request) -> JSONResponse:
-        session = require_admin(request)
+        session = require_authenticated(request)
         if session is None:
             return JSONResponse(status_code=401, content={"detail": "Authentication required"})
         return JSONResponse(
