@@ -88,6 +88,30 @@ def _date(value: Any) -> date | None:
     return None
 
 
+def _datetime(value: Any) -> datetime | None:
+    """Parse workbook timestamps without discarding an existing UTC offset."""
+    value = _clean(value)
+    if isinstance(value, datetime):
+        return value if value.tzinfo else value.replace(tzinfo=UTC)
+    if isinstance(value, date):
+        return datetime.combine(value, datetime.min.time(), UTC)
+    if isinstance(value, str):
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+        except ValueError:
+            return None
+    return None
+
+
+def _is_formula(value: Any) -> bool:
+    """Recognize ordinary and array formulas returned by openpyxl."""
+    if isinstance(value, str):
+        return value.startswith("=")
+    text = getattr(value, "text", None)
+    return isinstance(text, str) and text.startswith("=")
+
+
 def _truth(value: Any, default: bool = True) -> bool:
     if value is None:
         return default
@@ -121,7 +145,7 @@ def _read_sheet(values_wb, formulas_wb, name: str, key: str | None) -> list[dict
             if not header:
                 continue
             formula = formula_ws.cell(row_no, col_no).value
-            is_formula = isinstance(formula, str) and formula.startswith("=")
+            is_formula = _is_formula(formula)
             if is_formula and header not in FORMULA_REFERENCE_FIELDS:
                 continue
             value = _clean(ws.cell(row_no, col_no).value)
@@ -146,7 +170,7 @@ def load(path: Path) -> tuple[dict[str, list[dict[str, Any]]], list[str]]:
     data["_formula_counts"] = {
         name: sum(
             1 for row in ws.iter_rows() for cell in row
-            if isinstance(cell.value, str) and cell.value.startswith("=")
+            if _is_formula(cell.value)
         )
         for name, ws in ((sheet, formulas_wb[sheet]) for sheet in values_wb.sheetnames)
     }
@@ -227,6 +251,10 @@ def report(data: dict[str, list[dict[str, Any]]]) -> dict[str, Any]:
     for row in kpis:
         if not row.get("KPI ID"):
             issue("KPI Register", row, "missing_kpi_id")
+        if not row.get("KPI"):
+            issue("KPI Register", row, "missing_kpi_name", "KPI")
+        if not row.get("Team"):
+            issue("KPI Register", row, "missing_team", "Team")
         if row.get("Team") and row["Team"] not in team_names:
             issue("KPI Register", row, "unknown_team", "Team")
         if row.get("Owner Person ID") and row["Owner Person ID"] not in person_ids:
@@ -249,6 +277,10 @@ def report(data: dict[str, list[dict[str, Any]]]) -> dict[str, Any]:
     for row in tasks:
         if not row.get("Task ID"):
             issue("Master Task Tracker", row, "missing_task_id")
+        if not row.get("Task Name"):
+            issue("Master Task Tracker", row, "missing_task_name", "Task Name")
+        if not row.get("Team"):
+            issue("Master Task Tracker", row, "missing_team", "Team")
         if row.get("Team") and row["Team"] not in team_names:
             issue("Master Task Tracker", row, "unknown_team", "Team")
         for field in ("Assigned To ID", "Assigned By ID", "Reviewer ID"):
@@ -420,6 +452,7 @@ def apply(data: dict[str, list[dict[str, Any]]]) -> dict[str, int]:
             progress = _number(row.get("% Complete")) or Decimal(0)
             pct = int(max(0, min(100, progress * 100 if progress <= 1 else progress)))
             team_id = team_by_name[str(row["Team"])]
+            snooze_until = _datetime(row.get("Snooze Until"))
             db.add(Task(
                 task_id=task_id, name=str(row["Task Name"])[:240],
                 task_type=str(row.get("Task Type") or "General")[:64], team_id=team_id,
@@ -432,9 +465,18 @@ def apply(data: dict[str, list[dict[str, Any]]]) -> dict[str, int]:
                 completed_at=datetime.combine(_date(row.get("Completed Date")), datetime.min.time(), UTC) if _date(row.get("Completed Date")) else None,
                 output_link=str(row["Output / Link"]) if row.get("Output / Link") else None,
                 blocker_note=str(row["Remarks / Blocker"]) if row.get("Remarks / Blocker") else None,
+                snooze_until=snooze_until,
             ))
             detail = {"workbook_fields": _source(row), "source_sheet": "Master Task Tracker", "source_row": row["_row"]}
             db.add(TaskDetail(task_id=task_id, task_type=str(row.get("Task Type") or "General")[:64], details=detail))
+            reminder_state = {
+                "last_reminded_at": _datetime(row.get("Last Reminded At")),
+                "reminder_count": int(_number(row.get("Reminder Count")) or 0),
+                "last_escalated_at": _datetime(row.get("Last Escalated At")),
+                "assigner_notified_at": _datetime(row.get("Assigner Notified At")),
+            }
+            if any(value is not None and value != 0 for value in reminder_state.values()):
+                db.add(TaskReminderState(task_id=task_id, **reminder_state))
 
         for row in data["Weekly KPI Log"]:
             kpi_id = str(row["KPI ID"])
@@ -521,7 +563,17 @@ def apply(data: dict[str, list[dict[str, Any]]]) -> dict[str, int]:
         for row in data["Config"]:
             key = str(row.get("Setting Key"))
             value = _setting_value(row.get("Value"))
-            db.merge(Setting(key=setting_map.get(key, f"workbook.{key}"), value=value,
+            mapped_key = setting_map.get(key, f"workbook.{key}")
+            # Importing a spreadsheet must never activate outbound messaging.
+            # Preserve the requested workbook value separately for an explicit
+            # post-migration operator decision.
+            if key == "Cfg_BotEnabled":
+                db.merge(Setting(
+                    key="workbook.Cfg_BotEnabled_requested", value=value,
+                    description="Original workbook request; outbound delivery remains disabled until explicitly enabled.",
+                ))
+                value = False
+            db.merge(Setting(key=mapped_key, value=value,
                              description=str(row.get("What it does") or "Imported workbook configuration")))
         lists: dict[str, list[Any]] = {}
         for row in data["Lists"]:

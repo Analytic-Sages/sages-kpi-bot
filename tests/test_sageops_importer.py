@@ -9,7 +9,7 @@ from sqlalchemy.pool import StaticPool
 from app.operations_db import Base
 from app.operations_models import (
     Blocker, JobRun, KPI, KPIResult, Notification, NotificationAttempt, Person,
-    ReviewAction, Setting, Task, TaskDetail, Team, WeeklyReview,
+    ReviewAction, Setting, Task, TaskDetail, TaskReminderState, Team, WeeklyReview,
 )
 from scripts import import_sageops_workbook as importer
 
@@ -198,4 +198,52 @@ def test_import_preserves_existing_worker_runs_and_allows_empty_business_import(
         assert db.get(Team, "TM001") is not None
 
     assert imported["teams"] == 1
+    engine.dispose()
+
+
+
+def test_import_preserves_task_reminder_state_and_never_enables_bot(tmp_path, monkeypatch):
+    path = tmp_path / "tracker.xlsx"
+    make_workbook(path)
+    workbook = __import__("openpyxl").load_workbook(path)
+    tasks = workbook["Master Task Tracker"]
+    headers = [cell.value for cell in tasks[1]]
+    extra = {
+        "Last Reminded At": "2026-10-09T08:30:00+01:00",
+        "Reminder Count": 3,
+        "Snooze Until": "2026-10-10T09:00:00+01:00",
+        "Last Escalated At": "2026-10-09T09:00:00+01:00",
+        "Assigner Notified At": "2026-10-09T09:15:00+01:00",
+    }
+    for key, value in extra.items():
+        if key not in headers:
+            headers.append(key)
+            tasks.cell(1, len(headers)).value = key
+        tasks.cell(2, headers.index(key) + 1).value = value
+    config = workbook["Config"]
+    config.cell(2, 2).value = "Yes"
+    workbook.save(path)
+
+    data, _ = importer.load(path)
+    engine = create_engine(
+        "sqlite+pysqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(engine)
+    sessions = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+    monkeypatch.setattr(importer, "SessionLocal", sessions)
+
+    importer.apply(data)
+    with sessions() as db:
+        state = db.get(TaskReminderState, "T0001")
+        task = db.get(Task, "T0001")
+        settings = {item.key: item.value for item in db.scalars(select(Setting)).all()}
+        assert state.reminder_count == 3
+        assert state.last_reminded_at.isoformat().startswith("2026-10-09T08:30:00")
+        assert state.last_escalated_at.isoformat().startswith("2026-10-09T09:00:00")
+        assert state.assigner_notified_at.isoformat().startswith("2026-10-09T09:15:00")
+        assert task.snooze_until.isoformat().startswith("2026-10-10T09:00:00")
+        assert settings["bot_enabled"] is False
+        assert settings["workbook.Cfg_BotEnabled_requested"] is True
     engine.dispose()
