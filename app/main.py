@@ -11,11 +11,11 @@ from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+from app.analytics.service import GrowthAnalyticsService
 from app.admin_api import create_admin_api_router
 from app.admin_auth import create_admin_auth_router
 from app.admin_records_api import create_admin_records_router
 from app.operations_api import create_operations_router
-from app.analytics.service import GrowthAnalyticsService
 from app.config import get_settings
 from app.logging_config import configure_logging
 from app.preflight import sheet_findings
