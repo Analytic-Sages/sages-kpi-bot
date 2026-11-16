@@ -10,6 +10,8 @@ from collections.abc import Generator
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
+from app.config import get_settings
+
 
 class Base(DeclarativeBase):
     pass
@@ -25,7 +27,7 @@ def normalize_database_url(value: str) -> str:
 
 
 def build_engine(database_url: str | None = None):
-    url = database_url or os.getenv("DATABASE_URL")
+    url = database_url or get_settings().database_url or os.getenv("DATABASE_URL")
     if not url:
         return None
     return create_engine(
