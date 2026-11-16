@@ -135,3 +135,46 @@ def list_kpis(*, limit: int, offset: int, team: str | None, person: str | None, 
             "data_quality": {"duplicate_person_ids": 0, "duplicate_kpi_ids": 0, "kpis_missing_id": 0},
             "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
         }
+
+def team_performance(*, today: date, start_date: date, end_date: date, team_filter: str | None, person_filter: str | None, status_filter: str | None) -> dict:
+    """Build the existing dashboard analytics contract from normalized PostgreSQL records."""
+    from app.analytics.team_performance import build_team_performance
+
+    if SessionLocal is None:
+        raise RuntimeError("PostgreSQL is not configured")
+    with SessionLocal() as db:
+        people, teams = _context(db)
+        person_rows = [
+            {"Person ID": p.person_id, "Full Name": p.full_name,
+             "Team": teams.get(p.team_id, ""), "Status": p.status}
+            for p in db.scalars(select(Person)).all()
+        ]
+        task_rows = [
+            {"Task ID": t.task_id, "Task Name": t.name, "Assigned To ID": t.assigned_to or "",
+             "Status": t.status, "Due Date": t.deadline.isoformat() if t.deadline else "",
+             "Last Updated": t.updated_at.date().isoformat() if t.updated_at else "",
+             "Blocker": t.blocker_note or ""}
+            for t in db.scalars(select(Task)).all()
+        ]
+        kpis = db.scalars(select(KPI)).all()
+        kpi_rows = [
+            {"KPI ID": k.kpi_id, "Team": teams.get(k.team_id, ""),
+             "Role": k.role_id or "", "KPI": k.name, "Owner Person ID": k.owner_person_id,
+             "Target": str(k.target), "Active?": "Yes" if k.active else "No",
+             "Direction": k.direction}
+            for k in kpis
+        ]
+        owner_by_kpi = {k.kpi_id: k.owner_person_id for k in kpis}
+        result_rows = [
+            {"Week Start": r.period_start.isoformat(), "KPI ID": r.kpi_id,
+             "Owner Person ID": owner_by_kpi.get(r.kpi_id, ""),
+             "Target": str(r.target_used), "Actual": str(r.actual) if r.actual is not None else ""}
+            for r in db.scalars(select(KPIResult)).all()
+        ]
+        result = build_team_performance(
+            person_rows, task_rows, kpi_rows, result_rows, today=today,
+            start_date=start_date, end_date=end_date, team_filter=team_filter,
+            person_filter=person_filter, status_filter=status_filter,
+        )
+        result["source"] = {"system": "PostgreSQL", "status": "read_success"}
+        return result
