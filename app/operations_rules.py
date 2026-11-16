@@ -99,7 +99,7 @@ def kpi_achievement(direction: str, actual: Decimal | int | float | str | None,
         return Decimal(1) if a <= 0 else (t / a if a else Decimal(1))
     if mode == "maintain":
         if t == 0:
-            return Decimal(1) if a == 0 else Decimal(0)
+            return None
         return max(Decimal(0), Decimal(1) - abs(a - t) / abs(t))
     raise ValueError("direction must be Increase, Decrease, or Maintain")
 
