@@ -62,6 +62,8 @@ def create_operations_write_router():
     def auth(request,db):
         session=require_admin(request)
         if not session:return None,None,JSONResponse(status_code=401,content={"detail":"Authentication required"})
+        if not request.app.state.settings.operations_db_writes_enabled:
+            return None,None,JSONResponse(status_code=503,content={"detail":"PostgreSQL writes are disabled until cutover approval"})
         actor=resolve_actor(request,db)
         if not actor:return None,None,JSONResponse(status_code=403,content={"detail":"No active staff identity is linked to this account"})
         if not require_csrf(request,session):return None,None,JSONResponse(status_code=403,content={"detail":"CSRF validation failed"})
