@@ -176,7 +176,7 @@ async def receive_webhook(request: Request) -> JSONResponse:
     """Authenticate and persist event metadata in PostgreSQL without storing the payload."""
     if not settings.enable_webhooks:
         return JSONResponse(status_code=404, content={"detail": "Not found"})
-    if not settings.webhook_secret or SessionLocal is None:
+    if not settings.webhook_secret:
         return JSONResponse(status_code=503, content={"detail": "Webhook receiver is misconfigured"})
     body = await request.body()
     if len(body) > settings.webhook_max_body_bytes:
@@ -191,6 +191,10 @@ async def receive_webhook(request: Request) -> JSONResponse:
     except WebhookValidationError as exc:
         status = 401 if "signature" in str(exc).casefold() or "timestamp" in str(exc).casefold() else 400
         return JSONResponse(status_code=status, content={"detail": "Invalid webhook request"})
+    # Authenticate and validate before checking storage availability. Invalid webhook
+    # requests must be rejected consistently even when PostgreSQL is unavailable.
+    if SessionLocal is None:
+        return JSONResponse(status_code=503, content={"detail": "Webhook event store unavailable"})
     session = SessionLocal()
     try:
         inserted = session.execute(
