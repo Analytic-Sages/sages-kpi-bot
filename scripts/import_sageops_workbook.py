@@ -167,6 +167,18 @@ def load(path: Path) -> tuple[dict[str, list[dict[str, Any]]], list[str]]:
         formulas_wb.close(); values_wb.close()
         raise ValueError(f"Missing workbook sheets: {sorted(missing)}")
     data = {name: _read_sheet(values_wb, formulas_wb, name, key) for name, key in SHEETS.items()}
+    # The Config tab also contains instructional notes in its Setting Key column.
+    # Only Cfg_* rows are actual configuration; keep skipped row numbers for auditability.
+    config_rows = data["Config"]
+    data["_ignored_config_rows"] = [
+        {"row": row.get("_row"), "reason": "setting_key_not_prefixed_cfg"}
+        for row in config_rows
+        if not str(row.get("Setting Key", "")).strip().startswith("Cfg_")
+    ]
+    data["Config"] = [
+        row for row in config_rows
+        if str(row.get("Setting Key", "")).strip().startswith("Cfg_")
+    ]
     data["_formula_counts"] = {
         name: sum(
             1 for row in ws.iter_rows() for cell in row
@@ -221,6 +233,11 @@ def report(data: dict[str, list[dict[str, Any]]]) -> dict[str, Any]:
     role_names.update(str(x.get("Role")).casefold() for x in people if x.get("Role"))
     issues: list[dict[str, Any]] = []
     warnings: list[dict[str, Any]] = []
+    for ignored in data.get("_ignored_config_rows", []):
+        warnings.append({
+            "sheet": "Config", "row": ignored["row"],
+            "issue": ignored["reason"],
+        })
 
     def issue(sheet: str, row: dict[str, Any], code: str, field: str | None = None):
         item = {"sheet": sheet, "row": row.get("_row"), "issue": code}
@@ -317,6 +334,7 @@ def report(data: dict[str, list[dict[str, Any]]]) -> dict[str, Any]:
             "weekly_review_rows": len(reviews), "blockers": len(blockers),
             "reminder_history": len(reminders), "config_entries": len(data["Config"]),
             "list_configuration_columns": len(list_headers),
+            "ignored_config_rows": len(data.get("_ignored_config_rows", [])),
         },
         "duplicates": duplicates,
         "issues": issues,
@@ -327,6 +345,23 @@ def report(data: dict[str, list[dict[str, Any]]]) -> dict[str, Any]:
             "derived_sheets": DERIVED_SHEETS,
             "lists_preserved_as_setting": True,
             "no_individual_owner_invented": True,
+        },
+        "runtime_setting_review": {
+            "worker_consumed": [
+                "bot_enabled", "timezone", "due_soon_days",
+                "reminder_cooldown_hours", "escalate_after_days",
+                "escalation_cooldown_hours", "digest_time",
+            ],
+            "not_read_by_operations_worker": sorted({
+                SETTING_MAP.get(str(row.get("Setting Key")), f"workbook.{row.get('Setting Key')}")
+                for row in data["Config"]
+                if SETTING_MAP.get(str(row.get("Setting Key")), f"workbook.{row.get('Setting Key')}") not in {
+                    "bot_enabled", "timezone", "due_soon_days",
+                    "reminder_cooldown_hours", "escalate_after_days",
+                    "escalation_cooldown_hours", "digest_time",
+                    "workbook.Cfg_BotEnabled_requested",
+                }
+            }),
         },
         "ready": not issues and not any(duplicates.values()),
     }
