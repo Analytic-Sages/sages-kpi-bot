@@ -17,6 +17,9 @@ dependencies = [
   "gspread>=6.1,<7.0",
   "google-auth>=2.34,<3.0",
   "itsdangerous>=2.2,<3.0",
+  "SQLAlchemy>=2.0,<3.0",
+  "psycopg[binary]>=3.2,<4.0",
+  "alembic>=1.13,<2.0",
 ]
 
 [project.optional-dependencies]
