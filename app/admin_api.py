@@ -60,11 +60,29 @@ def create_admin_api_router() -> APIRouter:
                     "google_sheets": {
                         "configured": bool(settings.google_sheet_id),
                         "status": (
-                            "configured_not_checked"
+                            "not_used_for_admin_records"
+                            if settings.operations_db_reads_enabled
+                            else "configured_not_checked"
                             if settings.google_sheet_id
                             else "not_configured"
                         ),
-                        "note": "Connectivity is not tested by this read-only overview.",
+                        "note": (
+                            "PostgreSQL is the active source for Control Centre records."
+                            if settings.operations_db_reads_enabled
+                            else "Connectivity is not tested by this read-only overview."
+                        ),
+                    },
+                    "operations_database": {
+                        "configured": bool(settings.database_url),
+                        "active": settings.operations_db_reads_enabled,
+                        "status": (
+                            "active"
+                            if settings.operations_db_reads_enabled
+                            else "configured_not_active"
+                            if settings.database_url
+                            else "not_configured"
+                        ),
+                        "note": "Database connectivity is checked by the protected operations health endpoint.",
                     },
                     "telegram": {
                         "configured": bool(settings.telegram_bot_token),
