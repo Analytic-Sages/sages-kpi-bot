@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from datetime import UTC, date, datetime
-from sqlalchemy import func, select
+from sqlalchemy import select
 
 from app.operations_db import SessionLocal
 from app.operations_models import KPI, KPIResult, Person, Task, Team
