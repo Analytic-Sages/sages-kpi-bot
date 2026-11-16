@@ -17,6 +17,7 @@ from fastapi.responses import JSONResponse
 
 from app.admin_auth import require_admin
 from app.analytics.team_performance import build_team_performance
+from app.operations_admin_adapter import team_performance as database_team_performance
 from app.audit.store import SQLiteAuditLog
 from app.sheets.client import GoogleSheetsClient, GoogleSheetsError
 
@@ -60,11 +61,29 @@ def create_admin_api_router() -> APIRouter:
                     "google_sheets": {
                         "configured": bool(settings.google_sheet_id),
                         "status": (
-                            "configured_not_checked"
+                            "not_used_for_admin_records"
+                            if settings.operations_db_reads_enabled
+                            else "configured_not_checked"
                             if settings.google_sheet_id
                             else "not_configured"
                         ),
-                        "note": "Connectivity is not tested by this read-only overview.",
+                        "note": (
+                            "PostgreSQL is the active source for Control Centre records."
+                            if settings.operations_db_reads_enabled
+                            else "Connectivity is not tested by this read-only overview."
+                        ),
+                    },
+                    "operations_database": {
+                        "configured": bool(settings.database_url),
+                        "active": settings.operations_db_reads_enabled,
+                        "status": (
+                            "active"
+                            if settings.operations_db_reads_enabled
+                            else "configured_not_active"
+                            if settings.database_url
+                            else "not_configured"
+                        ),
+                        "note": "Database connectivity is checked by the protected operations health endpoint.",
                     },
                     "telegram": {
                         "configured": bool(settings.telegram_bot_token),
@@ -135,6 +154,18 @@ def create_admin_api_router() -> APIRouter:
                 {"detail": "start_date must be on or before end_date"}, status_code=422
             )
         settings = request.app.state.settings
+        if settings.operations_db_reads_enabled:
+            try:
+                return _json_response(database_team_performance(
+                    today=today, start_date=effective_start, end_date=effective_end,
+                    team_filter=team, person_filter=person, status_filter=status,
+                ))
+            except Exception:
+                logger.warning("admin_team_performance_failed reason=database_unavailable")
+                return _json_response(
+                    {"detail": "Team performance data is temporarily unavailable. Check PostgreSQL connectivity."},
+                    status_code=503,
+                )
         if not settings.google_sheet_id:
             return _json_response(
                 {"detail": "Google Sheets is not configured"}, status_code=503

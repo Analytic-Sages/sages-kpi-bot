@@ -1,6 +1,6 @@
 # Polaris — Analytic Sages Growth & Accountability Bot
 
-Polaris is a FastAPI service with Telegram team workflows, scheduled accountability prompts, and read-only growth analytics. Google Sheets remains the operational source of truth.
+Polaris is the staff operations backend for Analytic Sages. The SageOps PostgreSQL schema and protected operations API are being introduced alongside the existing Google Sheets-backed control centre. Google Sheets remains the operational source of truth until migration, parity and cutover gates pass.
 
 ## Run locally
 
