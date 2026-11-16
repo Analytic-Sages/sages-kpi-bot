@@ -3,11 +3,11 @@
 Revision ID: 0001_sageops_core
 Revises:
 """
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
-from app.operations_db import Base
 from app import operations_models  # noqa: F401
+from app.operations_db import Base
 
 revision = "0001_sageops_core"
 down_revision = None
