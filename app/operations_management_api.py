@@ -1,6 +1,5 @@
 """Remaining KPI and weekly-review management endpoints."""
 from __future__ import annotations
-from datetime import date
 from decimal import Decimal
 from fastapi import APIRouter,Depends,Query,Request
 from fastapi.responses import JSONResponse
@@ -10,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.admin_auth import require_admin
 from app.operations_access import can_access_team,is_manager,require_csrf,resolve_actor
 from app.operations_db import get_db
-from app.operations_models import AuditLog,KPI,Person,ReviewAction,WeeklyReview,Team
+from app.operations_models import AuditLog,KPI,Person,ReviewAction,WeeklyReview
 
 class KPICreate(BaseModel):
     kpi_id:str|None=None
