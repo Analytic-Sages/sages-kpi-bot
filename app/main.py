@@ -14,6 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from app.admin_api import create_admin_api_router
 from app.admin_auth import create_admin_auth_router
 from app.admin_records_api import create_admin_records_router
+from app.operations_api import create_operations_router
 from app.analytics.service import GrowthAnalyticsService
 from app.config import get_settings
 from app.logging_config import configure_logging
@@ -190,6 +191,7 @@ app.state.settings = settings
 app.include_router(create_admin_auth_router(settings))
 app.include_router(create_admin_api_router())
 app.include_router(create_admin_records_router())
+app.include_router(create_operations_router())
 app.mount(
     "/control",
     StaticFiles(directory=Path(__file__).resolve().parent / "static" / "admin", html=True),
