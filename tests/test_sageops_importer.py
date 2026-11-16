@@ -269,3 +269,32 @@ def test_expected_settings_uses_importer_mapping_and_skips_blank_config_rows(tmp
     assert expected["timezone"] == "Africa/Lagos"
     assert expected["due_soon_days"] == 2
     assert expected["workbook_lists"]["Task Status"] == ["Not Started", "In Progress"]
+
+
+def test_config_import_ignores_instruction_rows_and_reports_worker_unused_settings(tmp_path):
+    path = tmp_path / "tracker.xlsx"
+    make_workbook(path)
+    workbook = __import__("openpyxl").load_workbook(path)
+    config = workbook["Config"]
+    config.append(["Blue on yellow = you edit it. Grey = automatic.", None, None])
+    config.append(["Cfg_ManagerChatID", None, "Manager chat"])
+    workbook.save(path)
+
+    data, _ = importer.load(path)
+    result = importer.report(data)
+    expected = importer.expected_settings(data)
+
+    assert len(data["Config"]) == 3
+    assert data["_ignored_config_rows"] == [
+        {"row": 4, "reason": "setting_key_not_prefixed_cfg"}
+    ]
+    assert result["counts"]["config_entries"] == 3
+    assert result["counts"]["ignored_config_rows"] == 1
+    assert any(
+        item["sheet"] == "Config" and item["row"] == 4
+        and item["issue"] == "setting_key_not_prefixed_cfg"
+        for item in result["warnings"]
+    )
+    assert "workbook.Blue on yellow = you edit it. Grey = automatic." not in expected
+    assert "manager_chat_id" in result["runtime_setting_review"]["not_read_by_operations_worker"]
+    assert "timezone" in result["runtime_setting_review"]["worker_consumed"]
