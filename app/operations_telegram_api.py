@@ -5,7 +5,7 @@ from datetime import UTC,datetime
 import httpx
 from fastapi import APIRouter,Depends,Request
 from fastapi.responses import JSONResponse
-from sqlalchemy import select,update
+from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 from app.operations_db import get_db
