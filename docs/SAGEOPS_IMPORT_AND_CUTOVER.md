@@ -1,7 +1,7 @@
 # SageOps import, permissions and cutover
 
 ## Workbook contract
-The importer reads headers by name from row 1. It considers a row real only when Team Name, Full Name, KPI, or Task Name is populated, ignoring prefilled IDs and formula scaffolding. It imports teams, people, roles, KPIs and tasks. Empty weekly KPI and weekly review sheets are reported as zero; no records are invented.
+The importer reads headers by name from row 1. It considers a row real only when Team Name, Full Name, KPI, or Task Name is populated, ignoring prefilled IDs and formula scaffolding. It imports teams, people, roles, KPIs and tasks. KPI definitions without an owner remain valid team-level KPIs with a null individual owner. Empty weekly KPI and weekly review sheets are reported as zero; no records are invented.
 
 ## Import procedure
 1. Provision PostgreSQL, set DATABASE_URL, and run alembic upgrade head.
