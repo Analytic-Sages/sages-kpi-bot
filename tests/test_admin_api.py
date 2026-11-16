@@ -1,20 +1,17 @@
-import asyncio
-
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from app import admin_api
 from app.admin_api import create_admin_api_router
 from app.admin_auth import SESSION_COOKIE, _serializer, create_admin_auth_router
-from app.audit.store import SQLiteAuditLog
 from app.config import Settings
 
 
 def configured_settings(**overrides):
     values = {
-        "app_name": "Polaris",
+        "app_name": "SageOps",
         "app_env": "test",
         "dry_run": True,
-        "google_sheet_id": "sheet-id",
         "telegram_bot_token": None,
         "enable_team_workflows": False,
         "enable_team_writes": False,
@@ -23,7 +20,6 @@ def configured_settings(**overrides):
         "enable_webhooks": False,
         "enable_safe_telegram_replies": False,
         "enable_dry_run_team_replies": False,
-        "audit_db_path": "data/polaris-audit.sqlite3",
         "admin_google_client_id": "client-id",
         "admin_google_client_secret": "client-secret",
         "admin_google_redirect_uri": "https://polaris.example/auth/callback",
@@ -60,13 +56,15 @@ def test_admin_overview_requires_authentication():
     assert response.headers["cache-control"] == "no-store"
 
 
-def test_admin_overview_reports_safe_status_without_secrets():
+def test_admin_overview_reports_safe_status_without_secrets(monkeypatch):
+    monkeypatch.setattr(admin_api, "database_engine", lambda: None)
     response = client_for(configured_settings()).get("/api/v1/admin/overview")
     assert response.status_code == 200
     body = response.json()
-    assert body["admin"] == {"email": "admin@example.com", "access": "read_only"}
+    assert body["admin"] == {"email": "admin@example.com", "access": "administrator"}
     assert body["service"]["dry_run"] is True
-    assert body["integrations"]["google_sheets"]["status"] == "configured_not_checked"
+    assert "google_sheets" not in body["integrations"]
+    assert body["integrations"]["operations_database"]["status"] == "unavailable"
     assert body["safety"]["team_writes_enabled"] is False
     assert body["safety"]["live_sheet_mutations_available"] is False
     assert body["capabilities"]["task_and_kpi_browsing"] is True
@@ -76,37 +74,21 @@ def test_admin_overview_reports_safe_status_without_secrets():
     assert response.headers["cache-control"] == "no-store"
 
 
-def test_audit_history_is_empty_without_creating_database(tmp_path):
-    database = tmp_path / "missing" / "audit.sqlite3"
-    response = client_for(configured_settings(audit_db_path=str(database))).get(
-        "/api/v1/admin/audit-events"
-    )
+def test_audit_history_uses_postgresql_adapter(monkeypatch):
+    monkeypatch.setattr(admin_api, "list_audit_events", lambda **kwargs: {"items": [], "total": 0})
+    response = client_for(configured_settings()).get("/api/v1/admin/audit-events")
     assert response.status_code == 200
     assert response.json() == {"items": [], "total": 0, "limit": 25, "offset": 0}
-    assert not database.exists()
 
 
-def test_audit_history_is_paginated_and_filterable(tmp_path):
-    database = tmp_path / "audit.sqlite3"
-    store = SQLiteAuditLog(str(database))
-    for index, outcome in enumerate(("preview", "verified", "conflict")):
-        asyncio.run(
-            store.record(
-                {
-                    "request_id": f"request-{index}",
-                    "actor_id": "admin@example.com",
-                    "action": "sheet_mutation",
-                    "worksheet": "Approved Pilot",
-                    "record_id": f"record-{index}",
-                    "changed_fields": ["Status"],
-                    "before": {"Status": "Open"},
-                    "after": {"Status": "Closed"},
-                    "outcome": outcome,
-                }
-            )
-        )
+def test_audit_history_is_paginated_and_filterable(monkeypatch):
+    def fake_events(**kwargs):
+        assert kwargs == {"limit": 1, "offset": 0, "outcome": "verified", "worksheet": "Approved Pilot"}
+        return {"items": [{"outcome": "verified", "changed_fields": ["Status"],
+                           "before": {"Status": "Open"}, "after": {"Status": "Closed"}}], "total": 1}
 
-    client = client_for(configured_settings(audit_db_path=str(database)))
+    monkeypatch.setattr(admin_api, "list_audit_events", fake_events)
+    client = client_for(configured_settings())
     response = client.get(
         "/api/v1/admin/audit-events?limit=1&offset=0&outcome=verified"
         "&worksheet=Approved%20Pilot"

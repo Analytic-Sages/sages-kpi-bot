@@ -4,17 +4,17 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="light" />
-    <meta name="description" content="Polaris administrator control centre" />
-    <title>Polaris · Admin Control Centre</title>
+    <meta name="description" content="SageOps administrator control centre" />
+    <title>SageOps · Admin Control Centre</title>
     <link rel="stylesheet" href="/control/app.css" />
     <script src="/control/app.js" defer></script>
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
     <header class="topbar">
-      <a class="brand" href="/control/" aria-label="Polaris Admin home">
-        <span class="brand-mark" aria-hidden="true">P</span>
-        <span><strong>POLARIS</strong><small>ADMIN CONTROL CENTRE</small></span>
+      <a class="brand" href="/control/" aria-label="SageOps Admin home">
+        <span class="brand-mark" aria-hidden="true">S</span>
+        <span><strong>SAGEOPS</strong><small>ADMIN CONTROL CENTRE</small></span>
       </a>
       <div class="topbar-right">
         <span class="environment-pill" id="environment-pill">Checking session</span>
@@ -25,10 +25,10 @@
     <main id="main" class="page-shell">
       <section id="signed-out" class="sign-in-panel" aria-labelledby="signin-title">
         <p class="eyebrow">SECURE OPERATIONS</p>
-        <h1 id="signin-title">Welcome to Polaris.</h1>
+        <h1 id="signin-title">Welcome to SageOps.</h1>
         <p class="lead">Sign in with an approved Google account to view system status and audit history.</p>
         <a class="button button-primary" href="/auth/login">Continue with Google <span aria-hidden="true">↗</span></a>
-        <p class="muted small">Access is restricted to accounts configured by the Polaris administrator.</p>
+        <p class="muted small">Access is restricted to accounts configured by the SageOps administrator.</p>
       </section>
 
       <section id="dashboard" hidden>
@@ -54,7 +54,7 @@
 
         <section aria-labelledby="performance-heading" class="section-block analytics-section">
           <div class="section-heading">
-            <div><p class="eyebrow">TEAM ACCOUNTABILITY</p><h2 id="performance-heading">Team performance analytics</h2><p class="muted">Live read-only aggregates from the operational workbook.</p></div>
+            <div><p class="eyebrow">TEAM ACCOUNTABILITY</p><h2 id="performance-heading">Team performance analytics</h2><p class="muted">Live aggregates from PostgreSQL operational records.</p></div>
             <span id="analytics-source" class="source-pill">Waiting for data</span>
           </div>
           <form id="analytics-filter-form" class="filter-bar analytics-filters">
@@ -143,8 +143,8 @@
                 <option value="uncertain">Uncertain</option>
               </select>
             </label>
-            <label>Worksheet
-              <input id="worksheet-filter" name="worksheet" type="text" maxlength="128" placeholder="Exact worksheet name" />
+            <label>Record type
+              <input id="worksheet-filter" name="worksheet" type="text" maxlength="128" placeholder="Filter by record type" />
             </label>
             <button class="button button-secondary" type="submit">Apply filters</button>
           </form>
@@ -166,7 +166,7 @@
 
         <section class="section-block" aria-labelledby="task-records-heading">
           <div class="section-heading">
-            <div><p class="eyebrow">OPERATIONAL WORK</p><h2 id="task-records-heading">Task register</h2><p class="muted">Read-only task records from Google Sheets. Editing remains gated.</p></div>
+            <div><p class="eyebrow">OPERATIONAL WORK</p><h2 id="task-records-heading">Task register</h2><p class="muted">Task records from the PostgreSQL operations database.</p></div>
             <span id="tasks-count" class="muted small">Waiting for data</span>
           </div>
           <form id="task-record-filter" class="filter-bar">
@@ -206,10 +206,10 @@
           <div id="kpis-error" class="notice notice-error" role="alert" hidden></div>
           <div class="table-wrap"><table><thead><tr><th>KPI</th><th>Owner</th><th>Team</th><th>Target</th><th>Latest actual</th><th>Week</th><th>State</th></tr></thead><tbody id="kpi-records-body"><tr><td colspan="7" class="empty-cell">Loading KPIs…</td></tr></tbody></table></div>
           <div class="pagination"><span id="kpis-page-count" class="muted small">Loading records…</span><div class="pagination-actions"><button id="kpis-previous" class="button button-quiet" type="button" disabled>Previous</button><button id="kpis-next" class="button button-quiet" type="button" disabled>Next</button></div></div>
-          <p class="muted small">Task and KPI editing is not exposed. Editable fields and status transitions must be explicitly approved and validated before a write endpoint is enabled.</p>
+          <p class="muted small">Changes are handled by authorized PostgreSQL operations endpoints under the configured write gate.</p>
         </section>
       </section>
-      <footer class="footer"><span>Polaris · Analytic Sages</span><span><a href="/privacy">Privacy policy</a> · Admin access · Read-only</span></footer>
+      <footer class="footer"><span>SageOps · Analytic Sages</span><span><a href="/privacy">Privacy policy</a> · Authorized admin access</span></footer>
     </main>
   </body>
 </html>

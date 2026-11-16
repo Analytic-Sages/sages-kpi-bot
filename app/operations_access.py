@@ -5,7 +5,7 @@ from fastapi import Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from app.admin_auth import require_authenticated
-from app.operations_models import Person,Role,Team
+from app.operations_models import Person,RolePermission,Team
 
 @dataclass(frozen=True)
 class Actor:
@@ -30,9 +30,11 @@ def is_manager(actor:Actor,db:Session,team_id:str|None=None):
     if not actor.person:return False
     team_id=team_id or actor.person.team_id
     if team_id!=actor.person.team_id:return False
-    role=db.get(Role,actor.person.role_id) if actor.person.role_id else None
-    role_name=role.name.casefold() if role else ""
-    if any(word in role_name for word in ("manager","lead","head")):return True
+    if actor.person.role_id and db.scalar(select(RolePermission.permission).where(
+        RolePermission.role_id==actor.person.role_id,
+        RolePermission.permission=="team.manage",
+    )):
+        return True
     return db.scalar(select(Team.team_id).where(Team.team_id==team_id,Team.lead_person_id==actor.person_id)) is not None
 
 def can_access_team(actor:Actor,db:Session,team_id:str):

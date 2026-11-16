@@ -1,4 +1,4 @@
-"""Read-only team performance analytics derived from the operational Google Sheets workbook.
+"""Team performance analytics derived from normalized operational records.
 
 The workbook remains the source of truth. Header matching is tolerant of harmless naming
 variations, but the service never writes to Sheets and never fabricates missing metrics.

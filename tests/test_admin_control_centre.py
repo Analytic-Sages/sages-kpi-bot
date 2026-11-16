@@ -6,7 +6,7 @@ from app.main import app
 def test_admin_control_centre_is_served_with_security_headers():
     response = TestClient(app, base_url="https://testserver").get("/control/")
     assert response.status_code == 200
-    assert "Polaris" in response.text
+    assert "SageOps" in response.text
     assert "Continue with Google" in response.text
     assert "Team performance analytics" in response.text
     assert response.headers["content-security-policy"].find("default-src 'self'") >= 0

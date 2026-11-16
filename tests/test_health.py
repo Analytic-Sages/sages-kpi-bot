@@ -1,5 +1,3 @@
-from unittest.mock import AsyncMock
-
 from fastapi.testclient import TestClient
 
 from app import main as main_module
@@ -12,7 +10,7 @@ def test_root_reports_running_service():
     response = client.get("/")
     assert response.status_code == 200
     payload = response.json()
-    assert payload["service"] == "Polaris"
+    assert payload["service"] == "SageOps"
     assert payload["status"] == "running"
 
 
@@ -24,12 +22,14 @@ def test_liveness_probe():
 
 def test_readiness_does_not_claim_integrations_are_connected(monkeypatch):
     monkeypatch.setattr(main_module.settings, "telegram_bot_token", None)
+    monkeypatch.setattr(main_module, "_database_check", lambda: (True, "0003_ops_persistence"))
 
     response = client.get("/health/ready")
     assert response.status_code == 200
     payload = response.json()
     assert payload["status"] == "ready"
-    assert payload["integrations"]["analytics"] == "not_enabled"
+    assert payload["integrations"]["postgresql"] == "connected"
+    assert "google_sheets" not in payload["integrations"]
 
 
 def test_deployment_preflight_is_hidden_without_token(monkeypatch):
@@ -47,13 +47,10 @@ def test_deployment_preflight_rejects_invalid_bearer_token(monkeypatch):
     assert response.status_code == 401
 
 
-def test_deployment_preflight_returns_only_header_check_findings(monkeypatch):
+def test_deployment_preflight_checks_postgresql_only(monkeypatch):
     token = "a" * 40
     monkeypatch.setattr(main_module.settings, "preflight_token", token)
-    monkeypatch.setattr(main_module.settings, "google_sheet_id", "spreadsheet-id")
-    monkeypatch.setattr(main_module.GoogleSheetsClient, "from_settings", lambda settings: object())
-    monkeypatch.setattr(main_module, "sheet_findings", AsyncMock(return_value=[]))
-    monkeypatch.setattr(main_module, "row_integrity_findings", AsyncMock(return_value=[]))
+    monkeypatch.setattr(main_module, "_database_check", lambda: (True, "0003_ops_persistence"))
 
     response = client.get(
         "/admin/preflight",
@@ -61,45 +58,36 @@ def test_deployment_preflight_returns_only_header_check_findings(monkeypatch):
     )
 
     assert response.status_code == 200
-    assert response.json() == {"status": "passed", "checks": []}
+    assert response.json() == {
+        "status": "passed",
+        "checks": [{"severity": "INFO", "component": "PostgreSQL", "message": "Connection and migration revision 0003_ops_persistence verified."}],
+    }
 
 
 def test_telegram_health_is_degraded_when_not_configured(monkeypatch):
     monkeypatch.setattr(main_module.settings, "telegram_bot_token", None)
+    monkeypatch.setattr(main_module.settings, "telegram_webhook_secret", None)
     response = client.get("/health/telegram")
     assert response.status_code == 503
     assert response.json()["status"] == "not_configured"
 
 
-def test_telegram_health_requires_recent_successful_poll(monkeypatch):
-    from datetime import UTC, datetime, timedelta
-    from types import SimpleNamespace
-
+def test_telegram_health_requires_webhook_configuration(monkeypatch):
     monkeypatch.setattr(main_module.settings, "telegram_bot_token", "configured")
-    bot = SimpleNamespace(last_poll_success_at=datetime.now(UTC) - timedelta(minutes=5))
-    task = SimpleNamespace(done=lambda: False)
-    monkeypatch.setattr(app.state, "telegram_bot", bot, raising=False)
-    monkeypatch.setattr(app.state, "telegram_task", task, raising=False)
+    monkeypatch.setattr(main_module.settings, "telegram_webhook_secret", None)
 
     response = client.get("/health/telegram")
     assert response.status_code == 503
-    assert response.json()["status"] == "degraded"
-    assert response.json()["polling_task_alive"] is True
+    assert response.json()["status"] == "not_configured"
 
 
-def test_telegram_health_is_healthy_when_polling_is_recent(monkeypatch):
-    from datetime import UTC, datetime
-    from types import SimpleNamespace
-
+def test_telegram_health_is_healthy_when_webhook_is_configured(monkeypatch):
     monkeypatch.setattr(main_module.settings, "telegram_bot_token", "configured")
-    bot = SimpleNamespace(last_poll_success_at=datetime.now(UTC))
-    task = SimpleNamespace(done=lambda: False)
-    monkeypatch.setattr(app.state, "telegram_bot", bot, raising=False)
-    monkeypatch.setattr(app.state, "telegram_task", task, raising=False)
+    monkeypatch.setattr(main_module.settings, "telegram_webhook_secret", "secret")
 
     response = client.get("/health/telegram")
     assert response.status_code == 200
-    assert response.json()["status"] == "healthy"
+    assert response.json()["status"] == "webhook_configured"
 
 
 def test_privacy_policy_is_public_and_contains_required_sections():

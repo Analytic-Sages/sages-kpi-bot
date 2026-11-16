@@ -1,7 +1,7 @@
 """Google OIDC sign-in and allowlisted admin sessions for Polaris.
 
 This module provides authentication only. It intentionally does not enable or expose
-Google Sheets mutations. Session cookies are signed, HttpOnly, and time-limited.
+Operational database mutations. Session cookies are signed, HttpOnly, and time-limited.
 """
 from __future__ import annotations
 

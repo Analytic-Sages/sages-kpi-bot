@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from app.config import get_settings
 from app.operations_db import SessionLocal
-from app.operations_models import JobRun,KPI,KPIResult,Notification,Person,ReviewAction,Setting,Task,TaskReminderState,Team,WeeklyReview
+from app.operations_models import JobRun,KPI,KPIResult,Notification,NotificationAttempt,Person,ReviewAction,Setting,Task,TaskReminderState,Team,WeeklyReview
 from app.operations_rules import reminder_decision,escalation_due,next_allowed_send
 from zoneinfo import ZoneInfo
 logging.basicConfig(level=os.getenv("LOG_LEVEL","INFO"));log=logging.getLogger("sageops.worker");settings=get_settings()
@@ -103,34 +103,54 @@ def scan_digests():
     return queued
 
 async def dispatch(limit=50):
-    if not settings.telegram_bot_token or os.getenv("OPERATIONS_NOTIFICATIONS_ENABLED","false").casefold()!="true" or settings.dry_run:return 0
+    if not settings.telegram_bot_token or not settings.operations_notifications_enabled or settings.dry_run:return 0
     sent=0
     async with httpx.AsyncClient(timeout=15) as client:
         while sent<limit:
             with SessionLocal() as db:
                 item=db.scalar(select(Notification).where(Notification.status=="Queued",Notification.available_at<=datetime.now(UTC)).order_by(Notification.available_at,Notification.id).with_for_update(skip_locked=True).limit(1))
                 if item is None:break
-                item.status="Sending";item.attempts+=1;db.commit();iid,chat,msg,attempts=item.id,item.chat_id,item.message,item.attempts
+                item.status="Sending";item.attempts+=1;item.delivery_started_at=datetime.now(UTC);db.commit();iid,chat,msg,attempts=item.id,item.chat_id,item.message,item.attempts
             try:
                 r=await client.post(f"https://api.telegram.org/bot{settings.telegram_bot_token}/sendMessage",json={"chat_id":chat,"text":msg});r.raise_for_status()
                 if not r.json().get("ok"):raise RuntimeError("Telegram delivery rejected")
                 with SessionLocal() as db:
-                    x=db.get(Notification,iid);x.status="Sent";x.sent_at=datetime.now(UTC);x.error=None;db.commit()
+                    x=db.get(Notification,iid);x.status="Sent";x.sent_at=datetime.now(UTC);x.delivery_started_at=None;x.error=None
+                    db.add(NotificationAttempt(notification_id=iid,outcome="sent"));db.commit()
                 sent+=1
             except Exception as exc:
                 with SessionLocal() as db:
-                    x=db.get(Notification,iid);x.status="Queued" if attempts<5 else "Failed";x.error=type(exc).__name__;x.available_at=datetime.now(UTC)+timedelta(minutes=min(60,2**attempts));db.commit()
+                    x=db.get(Notification,iid);x.status="Queued" if attempts<5 else "Failed";x.delivery_started_at=None;x.error=type(exc).__name__;x.available_at=datetime.now(UTC)+timedelta(minutes=min(60,2**attempts))
+                    db.add(NotificationAttempt(notification_id=iid,outcome="failed",error=type(exc).__name__));db.commit()
                 log.warning("delivery_failed id=%s type=%s",iid,type(exc).__name__)
     return sent
+
+def recover_interrupted_deliveries():
+    """Requeue sends left in Sending by a worker crash; the DB lock prevents lost work."""
+    if SessionLocal is None:raise RuntimeError("DATABASE_URL is not configured")
+    now=datetime.now(UTC);cutoff=now-timedelta(minutes=15)
+    with SessionLocal() as db:
+        stale=db.scalars(select(Notification).where(
+            Notification.status=="Sending",
+            Notification.delivery_started_at.is_not(None),
+            Notification.delivery_started_at<cutoff,
+        ).with_for_update(skip_locked=True)).all()
+        for item in stale:
+            item.status="Queued";item.available_at=now;item.delivery_started_at=None
+            item.error="Worker restarted during delivery; outcome may require Telegram reconciliation"
+            db.add(NotificationAttempt(notification_id=item.id,outcome="interrupted",error="Worker restarted during delivery"))
+        db.commit()
+        return len(stale)
+
 async def main():
     if SessionLocal is None:raise RuntimeError("DATABASE_URL is not configured")
     while True:
         started=datetime.now(UTC)
         try:
-            queued=scan()+scan_digests();sent=await dispatch()
-            with SessionLocal() as db:db.add(JobRun(job_name="reminder_dispatch",started_at=started,finished_at=datetime.now(UTC),status="success",detail=f"queued={queued};sent={sent}"));db.commit()
+            recovered=recover_interrupted_deliveries();queued=scan()+scan_digests();sent=await dispatch()
+            with SessionLocal() as db:db.add(JobRun(job_name="reminder_dispatch",started_at=started,finished_at=datetime.now(UTC),status="success",detail=f"recovered={recovered};queued={queued};sent={sent}"));db.commit()
         except Exception as exc:
             log.exception("worker_cycle_failed")
             with SessionLocal() as db:db.add(JobRun(job_name="reminder_dispatch",started_at=started,finished_at=datetime.now(UTC),status="failed",detail=type(exc).__name__));db.commit()
-        await asyncio.sleep(int(os.getenv("OPERATIONS_WORKER_INTERVAL_SECONDS","60")))
+        await asyncio.sleep(settings.operations_worker_interval_seconds)
 if __name__=="__main__":asyncio.run(main())

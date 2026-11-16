@@ -75,9 +75,7 @@
     const grid = byId("summary-grid");
     grid.replaceChildren();
     const database = overview.integrations.operations_database;
-    const primaryDataSource = database && database.active
-      ? ["PostgreSQL", database.status, database.note]
-      : ["Google Sheets", overview.integrations.google_sheets.status, overview.integrations.google_sheets.note];
+    const primaryDataSource = ["PostgreSQL", database?.status || "unavailable", database?.note || "Database connection is unavailable."];
     const integrationEntries = [
       primaryDataSource,
       ["Telegram", overview.integrations.telegram.status, overview.integrations.telegram.configured ? "Bot token is configured; live connectivity not tested." : "No bot token configured."],
@@ -95,7 +93,7 @@
       grid.append(card);
     }
     byId("generated-at").textContent = "Updated " + new Date(overview.generated_at).toLocaleString(undefined, { timeZone: "UTC", timeZoneName: "short" });
-    byId("welcome-line").textContent = "Signed in as " + overview.admin.email + ". This workspace is currently read-only.";
+    byId("welcome-line").textContent = "Signed in as " + overview.admin.email + ". Operational data is served from PostgreSQL.";
   }
 
   function renderSafety(overview) {
@@ -110,7 +108,7 @@
       ["Webhooks", overview.safety.webhooks_enabled],
       ["Safe Telegram replies", overview.safety.safe_telegram_replies_enabled],
       ["Dry-run team replies", overview.safety.dry_run_team_replies_enabled],
-      ["Live Sheets mutations", overview.safety.live_sheet_mutations_available],
+      ["PostgreSQL writes", overview.safety.database_writes_enabled],
     ];
     for (const [label, enabled] of labels) {
       const card = element("div", "safety-card");
@@ -121,7 +119,7 @@
         text = enabled ? "Active" : "Inactive";
         klass = enabled ? "flag" : "flag on";
       }
-      if (label === "Live Sheets mutations" && !enabled) text = "Unavailable";
+      if (label === "PostgreSQL writes" && !enabled) text = "Disabled";
       card.append(element("span", klass, text));
       grid.append(card);
     }

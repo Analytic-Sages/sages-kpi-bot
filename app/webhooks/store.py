@@ -1,15 +1,11 @@
 """Authenticated, idempotent inbound webhook event ledger."""
 from __future__ import annotations
 
-import asyncio
 import hashlib
 import hmac
 import json
 import re
-import sqlite3
-from contextlib import closing
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import Any
 
 
@@ -71,60 +67,3 @@ def parse_event(body: bytes, header_event_id: str) -> tuple[str, str]:
     if not isinstance(event_type, str) or not _EVENT_TYPE.fullmatch(event_type):
         raise WebhookValidationError("Invalid event_type")
     return event_id, event_type
-
-
-class SQLiteWebhookEventStore:
-    """Durable idempotency ledger. Only event metadata and a body hash are stored."""
-
-    def __init__(self, database_path: str | Path) -> None:
-        self.database_path = str(database_path)
-        if self.database_path == ":memory:":
-            raise ValueError("Use a file-backed database so webhook IDs persist")
-        Path(self.database_path).expanduser().parent.mkdir(parents=True, exist_ok=True)
-        with closing(self._connect()) as connection, connection:
-            connection.execute("PRAGMA journal_mode=WAL")
-            connection.execute(
-                """CREATE TABLE IF NOT EXISTS webhook_events (
-                    event_id TEXT PRIMARY KEY,
-                    event_type TEXT NOT NULL,
-                    body_sha256 TEXT NOT NULL,
-                    received_at TEXT NOT NULL
-                )"""
-            )
-            connection.execute(
-                "CREATE INDEX IF NOT EXISTS idx_webhook_events_received "
-                "ON webhook_events(received_at)"
-            )
-
-    def _connect(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(self.database_path, timeout=10)
-        connection.row_factory = sqlite3.Row
-        return connection
-
-    async def record(self, event_id: str, event_type: str, body: bytes) -> bool:
-        """Return True for first delivery, False for identical duplicate delivery."""
-        return await asyncio.to_thread(self._record, event_id, event_type, body)
-
-    def _record(self, event_id: str, event_type: str, body: bytes) -> bool:
-        body_hash = hashlib.sha256(body).hexdigest()
-        with self._connect() as connection:
-            connection.execute("BEGIN IMMEDIATE")
-            existing = connection.execute(
-                "SELECT event_type, body_sha256 FROM webhook_events WHERE event_id = ?",
-                (event_id,),
-            ).fetchone()
-            if existing:
-                if (
-                    existing["event_type"] != event_type
-                    or existing["body_sha256"] != body_hash
-                ):
-                    raise WebhookConflictError(
-                        "Event ID was already used for a different event body"
-                    )
-                return False
-            connection.execute(
-                "INSERT INTO webhook_events(event_id, event_type, body_sha256, received_at) "
-                "VALUES (?, ?, ?, ?)",
-                (event_id, event_type, body_hash, datetime.now(UTC).isoformat()),
-            )
-            return True
