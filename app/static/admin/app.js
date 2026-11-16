@@ -2,11 +2,19 @@
   "use strict";
 
   const byId = (id) => document.getElementById(id);
-  const state = { csrf: null, offset: 0, limit: 25, total: 0, loading: false, analyticsLoading: false, analytics: null, taskOffset: 0, kpiOffset: 0, recordsLoading: false, taskRequest: 0, kpiRequest: 0 };
+  const state = { csrf: null, access: "read_only", offset: 0, limit: 25, total: 0, loading: false, analyticsLoading: false, analytics: null, taskOffset: 0, kpiOffset: 0, recordsLoading: false, taskRequest: 0, kpiRequest: 0 };
   const signedOut = byId("signed-out");
   const dashboard = byId("dashboard");
   const environmentPill = byId("environment-pill");
   const logoutButton = byId("logout-button");
+  const noStatus = new Option("No status change", "");
+  wsStatusOption();
+
+  function wsStatusOption() {
+    const select = byId("task-update-form").elements.status;
+    select.add(noStatus, 0);
+    select.value = "";
+  }
 
   function setNotice(id, message) {
     const node = byId(id);
@@ -75,9 +83,7 @@
     const grid = byId("summary-grid");
     grid.replaceChildren();
     const database = overview.integrations.operations_database;
-    const primaryDataSource = database && database.active
-      ? ["PostgreSQL", database.status, database.note]
-      : ["Google Sheets", overview.integrations.google_sheets.status, overview.integrations.google_sheets.note];
+    const primaryDataSource = ["PostgreSQL", database?.status || "unavailable", database?.note || "Database connection is unavailable."];
     const integrationEntries = [
       primaryDataSource,
       ["Telegram", overview.integrations.telegram.status, overview.integrations.telegram.configured ? "Bot token is configured; live connectivity not tested." : "No bot token configured."],
@@ -95,7 +101,7 @@
       grid.append(card);
     }
     byId("generated-at").textContent = "Updated " + new Date(overview.generated_at).toLocaleString(undefined, { timeZone: "UTC", timeZoneName: "short" });
-    byId("welcome-line").textContent = "Signed in as " + overview.admin.email + ". This workspace is currently read-only.";
+    byId("welcome-line").textContent = "Signed in as " + overview.admin.email + ". Operational data is served from PostgreSQL.";
   }
 
   function renderSafety(overview) {
@@ -110,7 +116,7 @@
       ["Webhooks", overview.safety.webhooks_enabled],
       ["Safe Telegram replies", overview.safety.safe_telegram_replies_enabled],
       ["Dry-run team replies", overview.safety.dry_run_team_replies_enabled],
-      ["Live Sheets mutations", overview.safety.live_sheet_mutations_available],
+      ["PostgreSQL writes", overview.safety.database_writes_enabled],
     ];
     for (const [label, enabled] of labels) {
       const card = element("div", "safety-card");
@@ -121,7 +127,7 @@
         text = enabled ? "Active" : "Inactive";
         klass = enabled ? "flag" : "flag on";
       }
-      if (label === "Live Sheets mutations" && !enabled) text = "Unavailable";
+      if (label === "PostgreSQL writes" && !enabled) text = "Disabled";
       card.append(element("span", klass, text));
       grid.append(card);
     }
@@ -482,7 +488,7 @@
         element("td", "", item.target || "—"),
         element("td", "", item.actual || "—"),
         element("td", "", item.week_start || "—"),
-        element("td", item.active ? "" : "muted", item.active ? "Active" : "Inactive")
+        (() => { const cell=element("td",item.active?"":"muted",item.active?"Active":"Inactive");const edit=element("button","button button-quiet","Edit");edit.type="button";edit.dataset.editKpi=item.id;cell.append(edit);return cell; })()
       );
       body.append(row);
     }
@@ -561,14 +567,265 @@
     }
   }
 
+  const workspace = { capabilities: {}, teams: [], people: [], roles: [], tasks: [], kpis: [], results: [], reviews: [], blockers: [], notifications: [], changes: [] };
+  const ws = (id) => byId(id);
+  function wsRows(id, rows, columns, render) {
+    const body = ws(id); body.replaceChildren();
+    if (!rows.length) return renderRecordEmpty(id, columns, "No records to display.");
+    rows.forEach((record) => { const tr = element("tr"); render(tr, record); body.append(tr); });
+  }
+  function optionList(select, records, label, emptyLabel, valueKey = "id") {
+    const selected = select.value;
+    select.replaceChildren();
+    if (emptyLabel !== null) select.add(new Option(emptyLabel, ""));
+    records.forEach((record) => select.add(new Option(label(record), record[valueKey] || "")));
+    if ([...select.options].some((option) => option.value === selected)) select.value = selected;
+  }
+  function fillWorkspaceSelects() {
+    const teams = workspace.teams, people = workspace.people, roles = workspace.roles;
+    document.querySelectorAll('#team-form [name="lead_person_id"]').forEach((x) => optionList(x, people.filter((p) => p.status === "Active"), (p) => p.full_name, "No lead assigned"));
+    document.querySelectorAll('#staff-form [name="team_id"],#kpi-manage-form [name="team_id"],#task-create-form [name="team_id"],#review-form [name="team_id"]').forEach((x) => optionList(x, teams, (t) => t.name, "Unassigned"));
+    document.querySelectorAll('#staff-form [name="role_id"],#kpi-manage-form [name="role_id"]').forEach((x) => optionList(x, roles, (r) => r.name, "No role"));
+    document.querySelectorAll('#staff-form [name="reports_to"],#review-form [name="action_owner"]').forEach((x) => optionList(x, people.filter((p) => p.status === "Active"), (p) => p.full_name, "No manager / owner"));
+    document.querySelectorAll('#task-create-form [name="assigned_to"],#task-create-form [name="reviewer"]').forEach((x) => optionList(x, people.filter((p) => p.status === "Active"), (p) => p.full_name, x.name === "assigned_to" ? "Unassigned" : "No reviewer"));
+    const assigneeSelect=ws("task-update-form").elements.assigned_to;assigneeSelect.replaceChildren(new Option("Keep current assignee",""),new Option("Unassign","__none__"));people.filter((p)=>p.status==="Active").forEach((p)=>assigneeSelect.add(new Option(p.full_name,p.id)));
+    const activeKpis = workspace.kpis.filter((k) => k.active);
+    optionList(ws("kpi-result-form").elements.kpi_id, activeKpis, (k) => k.name + " · " + k.id, null);
+    optionList(ws("task-update-form").elements.task_id, workspace.tasks, (t) => t.name + " · " + t.id, null);
+    optionList(ws("blocker-form").elements.task_id, workspace.tasks, (t) => t.name + " · " + t.id, "General blocker");
+    optionList(ws("blocker-form").elements.owner_person_id, people.filter((p)=>p.status==="Active"), (p)=>p.full_name, "No owner assigned");
+    optionList(ws("approval-request-form").elements.entity_id, workspace.tasks, (t) => t.name + " · " + t.id, null);
+    optionList(ws("task-filter-form").elements.team, teams, (t) => t.name, "All teams");
+    optionList(ws("task-filter-form").elements.assignee, people, (p) => p.full_name, "All owners");
+    optionList(ws("role-edit-select"), roles, (r) => r.name, "Create new role");
+  }
+  function personName(id) { return workspace.people.find((p) => p.id === id)?.full_name || "Unassigned"; }
+  function teamName(id) { return workspace.teams.find((t) => t.id === id)?.name || "Unassigned"; }
+  function renderWorkspace() {
+    fillWorkspaceSelects();
+    const caps=workspace.capabilities;const adminOnly=["system-heading","performance-heading","safety-heading","audit-heading","task-records-heading","kpi-records-heading"];
+    adminOnly.forEach((id)=>{const section=ws(id).closest("section");if(section)section.hidden=state.access!=="admin";});
+    ws("team-form").hidden=!caps.is_admin;ws("role-form").hidden=!caps.is_admin;ws("staff-form").hidden=!(caps.is_admin||caps.can_manage_staff);
+    ws("staff-form").elements.email.disabled=!caps.is_admin;ws("staff-form").elements.telegram_chat_id.disabled=!caps.is_admin;
+    ws("kpi-manage-form").hidden=!(caps.is_admin||caps.can_manage_kpis);
+    ws("task-create-form").hidden=!(caps.is_admin||caps.can_manage_tasks);
+    ws("review-form").hidden=!(caps.is_admin||caps.can_manage_reviews);
+    ws("blocker-form").elements.owner_person_id.closest("label").hidden=!(caps.is_admin||caps.is_team_manager);
+    document.querySelectorAll("#operations-workspace form button").forEach((button)=>{button.disabled=!caps.writes_enabled;});
+    if(!caps.writes_enabled)setNotice("workspace-message","Database writes are disabled by server configuration. Read access remains available.");
+    wsRows("teams-management-body", workspace.teams, 4, (tr, t) => {
+      [t.name, personName(t.lead_person_id), t.notes || "—"].forEach((v) => appendCell(tr, v));
+      const td=element("td");const btn=element("button","button button-quiet","Edit");btn.type="button";btn.dataset.editTeam=t.id;btn.hidden=!caps.is_admin;td.append(btn);tr.append(td);
+    });
+    wsRows("staff-body", workspace.people, 6, (tr, p) => {
+      [p.full_name, teamName(p.team_id), workspace.roles.find((r) => r.id === p.role_id)?.name || "—", personName(p.reports_to), p.status].forEach((v) => appendCell(tr, v));
+      const cell = element("td"); const edit = element("button", "button button-quiet", "View / edit"); edit.type = "button"; edit.dataset.editPerson = p.id;edit.hidden=!(workspace.capabilities.is_admin||workspace.capabilities.can_manage_staff); cell.append(edit); tr.append(cell);
+    });
+    wsRows("kpi-history-body", workspace.results, 7, (tr, r) => {
+      const kpi = workspace.kpis.find((x) => x.id === r.kpi_id);
+      [r.kpi_name || kpi?.name || r.kpi_id, r.period_start, r.actual, r.target_used, rate(r.achievement), r.below_target === null ? "Not comparable" : r.below_target ? "Below target" : "On target"].forEach((v) => appendCell(tr, v, r.below_target ? "cell-alert" : ""));
+      const td = element("td"); const edit = element("button", "button button-quiet", "Edit result"); edit.type = "button"; edit.dataset.editResult = String(r.id);edit.hidden=!(workspace.capabilities.is_admin||workspace.capabilities.can_manage_kpis||r.logged_by===workspace.capabilities.person_id); td.append(edit); tr.append(td);
+    });
+    wsRows("ops-tasks-body", workspace.visibleTasks || workspace.tasks, 7, (tr, t) => [t.name + " · " + t.id, personName(t.assigned_to), teamName(t.team_id), t.status, t.priority, t.deadline || "—", (t.percent_complete || 0) + "%"].forEach((v) => appendCell(tr, v)));
+    wsRows("reviews-body", workspace.reviews, 5, (tr, r) => {
+      [r.week_start,teamName(r.team_id),r.key_achievement||"—",r.challenge||"—"].forEach((v)=>appendCell(tr,v));
+      const td=element("td");(r.actions||[]).forEach((a)=>{const line=element("div","action-line",`${a.description} · ${personName(a.owner_person_id)} · ${a.due_date||"No due date"}`);const select=element("select");["Open","Done","Dropped"].forEach((s)=>select.add(new Option(s,s)));select.value=a.status;select.dataset.actionId=String(a.id);select.disabled=!(caps.is_admin||caps.can_manage_reviews||a.owner_person_id===caps.person_id);line.append(select);td.append(line);});if(!r.actions?.length)td.textContent="—";tr.append(td);
+    });
+    wsRows("blockers-body", workspace.blockers, 6, (tr, b) => {
+      [b.created_at ? new Date(b.created_at).toLocaleString() : "—", b.task_id || "General", b.description].forEach((v) => appendCell(tr, v));
+      const ownerCell=element("td");const ownerSelect=element("select");ownerSelect.add(new Option("Unassigned",""));workspace.people.filter((p)=>p.status==="Active").forEach((p)=>ownerSelect.add(new Option(p.full_name,p.id)));ownerSelect.value=b.owner_person_id||"";ownerSelect.dataset.blockerOwner=b.id;ownerSelect.disabled=!(caps.is_admin||caps.is_team_manager);ownerCell.append(ownerSelect);tr.append(ownerCell);
+      appendCell(tr,b.status);
+      const td = element("td"); if (b.status !== "Resolved") { const select = element("select"); ["Open", "In Progress", "Resolved"].forEach((s) => {const option=new Option(s,s);if(s==="Resolved"&&!(caps.is_admin||caps.is_team_manager))option.disabled=true;select.add(option);}); select.value = b.status; select.dataset.blocker = b.id;select.disabled=!(caps.is_admin||caps.is_team_manager||b.reported_by===caps.person_id); td.append(select); } tr.append(td);
+    });
+    wsRows("approvals-body", workspace.changes, 6, (tr, c) => {
+      [c.id.slice(0, 8), personName(c.requester), c.entity_id, JSON.stringify(c.changes), c.state].forEach((v) => appendCell(tr, v));
+      const td = element("td");
+      const action = (label, endpoint) => { const btn = element("button", "button button-quiet", label); btn.type = "button"; btn.dataset.changeId = c.id; btn.dataset.changeAction = endpoint; td.append(btn); };
+      if (c.state === "AWAITING_CONFIRMATION") action("Confirm", "confirm");
+      if (c.state === "PENDING_APPROVAL" && (workspace.capabilities.is_admin||workspace.capabilities.can_manage_tasks)) { action("Approve", "approve"); action("Reject", "reject"); }
+      tr.append(td);
+    });
+    wsRows("notifications-body", workspace.notifications, 6, (tr, n) => {
+      [n.created_at ? new Date(n.created_at).toLocaleString() : "—", n.type, n.message, n.status, n.attempts].forEach((v) => appendCell(tr, v, n.status === "Failed" ? "cell-alert" : ""));
+      const cell=element("td",n.error?"cell-alert":"",n.error||"—");
+      if(n.delivery_attempts?.length){const details=element("details");details.append(element("summary","","Attempt history"));n.delivery_attempts.forEach((a)=>details.append(element("p","small",`${new Date(a.at).toLocaleString()} · ${a.outcome}${a.error?" · "+a.error:""}`)));cell.append(details);}
+      tr.append(cell);
+    });
+  }
+  async function loadWorkspaceRecords() {
+    try {
+      const base = "/api/v1/operations/";
+      const [capabilities,teams, roles, people, tasks, kpis, results, reviews, blockers, notifications, changes] = await Promise.all([
+        requestJson(base+"capabilities"),
+        requestJson(base + "teams"), requestJson(base + "roles"), requestJson(base + "people?limit=500"),
+        requestJson(base + "tasks?limit=500"), requestJson(base + "kpis?active_only=false&limit=500"),
+        requestJson(base + "kpi-results?limit=500"), requestJson(base + "weekly-reviews?limit=200"),
+        requestJson(base + "blockers?limit=500"), requestJson(base + "notifications?limit=500"), requestJson(base + "changes?limit=500"),
+      ]);
+      workspace.visibleTasks=undefined;
+      Object.assign(workspace, { capabilities,teams: teams.items, roles: roles.items, people: people.items, tasks: tasks.items, kpis: kpis.items, results: results.items, reviews: reviews.items, blockers: blockers.items, notifications: notifications.items, changes: changes.items });
+      renderWorkspace(); setNotice("workspace-error", "");
+    } catch (error) { setNotice("workspace-error", error.message || "Operations data could not be loaded."); }
+  }
+  function formValues(form) {
+    const data = Object.fromEntries(new FormData(form).entries());
+    for (const [key, value] of Object.entries(data)) if (value === "") data[key] = null;
+    const permissions = form.elements.permissions;
+    if (permissions) data.permissions = [...permissions.selectedOptions].map((x) => x.value);
+    return data;
+  }
+  async function writeJson(url, method, data) {
+    return requestJson(url, { method, headers: { "Content-Type": "application/json", "X-CSRF-Token": state.csrf || "" }, body: JSON.stringify(data) });
+  }
+  function bindWriteForm(id, handler) {
+    ws(id).addEventListener("submit", async (event) => {
+      event.preventDefault(); const form = event.currentTarget; const button = form.querySelector("button[type=submit],button:not([type])");
+      if (button) { button.disabled = true; button.dataset.label = button.textContent; button.textContent = "Saving…"; }
+      try {
+        if(id==="task-update-form" && ["Completed","Cancelled","Closed"].includes(form.elements.status.value) && !window.confirm(`Confirm task status ${form.elements.status.value}?`))return;
+        if(id==="staff-form" && form.elements.id.value && form.elements.status.value==="Inactive" && !window.confirm("Deactivate this staff account? The person will lose dashboard access."))return;
+        await handler(formValues(form), form); setNotice("workspace-error", ""); setNotice("workspace-message", "Saved successfully.");
+        await loadWorkspaceRecords();if(state.access==="admin")await Promise.all([loadOperationalRecords(),loadAudit()]);
+      }
+      catch (error) { setNotice("workspace-error", error.message || "The change could not be saved."); }
+      finally { if (button) { button.disabled = false; button.textContent = button.dataset.label; } }
+    });
+  }
+  function editForm(form, item, idField = "id") {
+    form.reset(); form.elements[idField].value = item.id;
+    for (const [key, value] of Object.entries(item)) if (form.elements[key] && typeof value !== "object") form.elements[key].value = value ?? "";
+  }
+  function addReviewAction(form) {
+    return [...form.querySelectorAll(".review-action-row")].map((row)=>({
+      description:row.querySelector('[name="action_description"]').value.trim(),
+      owner_person_id:row.querySelector('[name="action_owner"]').value||null,
+      due_date:row.querySelector('[name="action_due"]').value||null,
+    })).filter((action)=>action.description);
+  }
+
+  function bindWorkspaceActions() {
+    const reviewForm=ws("review-form");const actionLabels=[...reviewForm.querySelectorAll('label')].filter((label)=>["action_description","action_owner","action_due"].includes(label.querySelector("[name]")?.name));
+    const actionGroup=element("div","review-action-row");actionLabels.forEach((label)=>actionGroup.append(label));reviewForm.insertBefore(actionGroup,reviewForm.querySelector("button"));
+    const addAction=element("button","button button-secondary","Add another action");addAction.type="button";actionGroup.after(addAction);
+    addAction.addEventListener("click",()=>{const clone=actionGroup.cloneNode(true);clone.querySelectorAll("input,select").forEach((input)=>input.value="");addAction.before(clone);});
+    const updateForm=ws("task-update-form");
+    const assignLabel=element("label","","Reassign to");const assignSelect=element("select");assignSelect.name="assigned_to";assignSelect.add(new Option("Keep current assignee",""));assignLabel.append(assignSelect);updateForm.insertBefore(assignLabel,updateForm.querySelector("button"));
+    const priorityLabel=element("label","","Priority");const prioritySelect=element("select");prioritySelect.name="priority";prioritySelect.add(new Option("Keep current priority",""));["Low","Medium","High","Urgent"].forEach((x)=>prioritySelect.add(new Option(x,x)));priorityLabel.append(prioritySelect);updateForm.insertBefore(priorityLabel,updateForm.querySelector("button"));
+    const deadlineLabel=element("label","","Deadline");const deadlineInput=element("input");deadlineInput.type="date";deadlineInput.name="deadline";deadlineLabel.append(deadlineInput);updateForm.insertBefore(deadlineLabel,updateForm.querySelector("button"));
+    bindWriteForm("team-form", async (d) => {
+      const id=d.id; delete d.id; const url=id?`/api/v1/operations/teams/${encodeURIComponent(id)}`:"/api/v1/operations/teams";
+      await writeJson(url,id?"PATCH":"POST",id?d:{...d,team_id:null});
+    });
+    bindWriteForm("staff-form", async (d) => {
+      const id=d.id; delete d.id; const url=id?`/api/v1/operations/people/${encodeURIComponent(id)}`:"/api/v1/operations/people";
+      await writeJson(url,id?"PATCH":"POST",id?d:{...d,person_id:null});
+    });
+    bindWriteForm("role-form", async (d,form) => {
+      const id=d.id; delete d.id; d.permissions=[...form.elements.permissions.selectedOptions].map((x)=>x.value);
+      const url=id?`/api/v1/operations/roles/${encodeURIComponent(id)}`:"/api/v1/operations/roles";
+      await writeJson(url,id?"PATCH":"POST",id?d:{...d,role_id:null});
+    });
+    bindWriteForm("kpi-manage-form", async (d) => {
+      const id=d.id; delete d.id; d.target=Number(d.target);
+      const url=id?`/api/v1/operations/kpis/${encodeURIComponent(id)}`:"/api/v1/operations/kpis";
+      await writeJson(url,id?"PATCH":"POST",d);
+    });
+    bindWriteForm("kpi-result-form", async (d) => {
+      d.actual=Number(d.actual); if(d.target_override)d.target_override=Number(d.target_override);else delete d.target_override;
+      const id=d.result_id; delete d.result_id;
+      if(id){delete d.kpi_id;delete d.period_start;await writeJson(`/api/v1/operations/kpi-results/${id}`,"PATCH",d);}
+      else await writeJson(`/api/v1/operations/kpis/${encodeURIComponent(d.kpi_id)}/results`,"POST",d);
+    });
+    bindWriteForm("task-create-form", async (d) => {
+      if(!d.assigned_to)delete d.assigned_to;if(!d.reviewer)delete d.reviewer;
+      await writeJson("/api/v1/operations/tasks","POST",d);
+    });
+    bindWriteForm("task-update-form", async (d) => {
+      const id=d.task_id;delete d.task_id;const task=workspace.tasks.find((x)=>x.id===id);if(!task)throw new Error("Select a current task.");
+      d.expected_version=task.version;
+      if(d.percent_complete)d.percent_complete=Number(d.percent_complete);else delete d.percent_complete;
+      if(d.assigned_to===null)delete d.assigned_to;
+      if(d.assigned_to==="__none__")d.assigned_to=null;
+      Object.keys(d).forEach((key)=>{if(d[key]===null)delete d[key];});
+      if(d.status==="Completed" && d.percent_complete===undefined)d.percent_complete=100;
+      await writeJson(`/api/v1/operations/tasks/${encodeURIComponent(id)}`,"PATCH",d);
+    });
+    bindWriteForm("review-form", async (d) => {
+      const form=ws("review-form");const actions=addReviewAction(form); const payload={team_id:d.team_id,week_start:d.week_start,key_achievement:d.key_achievement,challenge:d.challenge,decision:d.decision,actions};
+      await writeJson("/api/v1/operations/weekly-reviews","POST",payload);
+    });
+    bindWriteForm("blocker-form", async (d) => writeJson("/api/v1/operations/blockers","POST",d));
+    bindWriteForm("approval-request-form", async (d) => {
+      const id=d.entity_id;delete d.entity_id;const status=d.status;delete d.status;
+      await writeJson("/api/v1/operations/changes","POST",{entity:"task",entity_id:id,changes:{status},reason:d.reason});
+    });
+    ws("workspace-refresh").addEventListener("click",loadWorkspaceRecords);
+    ws("task-filter-form").addEventListener("submit",async(event)=>{
+      event.preventDefault();const d=formValues(event.currentTarget);const params=new URLSearchParams({limit:"500"});
+      if(d.team)params.set("team",d.team);if(d.assignee)params.set("assignee",d.assignee);if(d.status)params.set("status",d.status);
+      if(d.deadline==="overdue")params.set("overdue_only","true");if(d.deadline==="upcoming")params.set("deadline_filter","upcoming");
+      try{const data=await requestJson("/api/v1/operations/tasks?"+params);workspace.visibleTasks=data.items;renderWorkspace();}catch(e){setNotice("workspace-error",e.message);}
+    });
+    ws("role-edit-select").addEventListener("change",()=>{
+      const role=workspace.roles.find((x)=>x.id===ws("role-edit-select").value);const form=ws("role-form");
+      form.elements.id.value=role?.id||"";form.elements.name.value=role?.name||"";form.elements.core_domain.value=role?.core_domain||"";form.elements.responsibilities.value=role?.responsibilities||"";
+      [...form.elements.permissions.options].forEach((o)=>o.selected=(role?.permissions||[]).includes(o.value));
+    });
+    ws("staff-body").addEventListener("click",async(event)=>{
+      const personId=event.target.dataset.editPerson;if(!personId)return;const p=workspace.people.find((x)=>x.id===personId);if(!p)return;
+      editForm(ws("staff-form"),{...p,id:p.id});
+      const profile=ws("staff-profile");profile.hidden=false;profile.replaceChildren(element("h4","",p.full_name+" · Staff profile"));
+      const [tasks,kpis]=await Promise.all([requestJson(`/api/v1/operations/tasks?assignee=${encodeURIComponent(p.id)}&limit=100`),requestJson(`/api/v1/operations/kpis?owner=${encodeURIComponent(p.id)}&active_only=false&limit=100`)]);
+      profile.append(element("p","",`${p.status} · ${teamName(p.team_id)} · ${workspace.roles.find((r)=>r.id===p.role_id)?.name||"No role"}`));
+      if(p.email)profile.append(element("p","",p.email));
+      const taskList=element("ul");tasks.items.forEach((item)=>taskList.append(element("li","",`${item.name} · ${item.status} · due ${item.deadline||"not set"}`)));
+      const kpiList=element("ul");kpis.items.forEach((item)=>kpiList.append(element("li","",`${item.name} · target ${item.target} ${item.unit||""}`)));
+      profile.append(element("h4","","Tasks"),taskList,element("h4","","Owned KPIs"),kpiList);
+    });
+    ws("kpi-records-body").addEventListener("click",(event)=>{
+      const id=event.target.dataset.editKpi;if(!id)return;const k=workspace.kpis.find((x)=>x.id===id);if(k)editForm(ws("kpi-manage-form"),k);
+    });
+    ws("teams-management-body").addEventListener("click",(event)=>{
+      const id=event.target.dataset.editTeam;if(!id)return;const team=workspace.teams.find((x)=>x.id===id);if(team)editForm(ws("team-form"),team);
+    });
+    ws("ops-tasks-body").addEventListener("click",(event)=>{
+      const row=event.target.closest("tr");if(!row)return;const id=row.querySelector("td")?.textContent.split(" · ").at(-1);const t=workspace.tasks.find((x)=>x.id===id);if(!t)return;
+      const form=ws("task-update-form");form.elements.task_id.value=t.id;form.elements.status.value=t.status;form.elements.percent_complete.value=t.percent_complete;form.elements.output_link.value=t.output_link||"";form.elements.blocker_note.value=t.blocker_note||"";
+      form.elements.assigned_to.value="";form.elements.priority.value="";form.elements.deadline.value=t.deadline||"";
+    });
+    ws("reviews-body").addEventListener("change",async(event)=>{
+      const id=event.target.dataset.actionId;if(!id)return;
+      try{await writeJson(`/api/v1/operations/review-actions/${id}`,"PATCH",{status:event.target.value});await loadWorkspaceRecords();setNotice("workspace-message","Review action updated.");}catch(e){setNotice("workspace-error",e.message);}
+    });
+    ws("kpi-history-body").addEventListener("click",async(event)=>{
+      const id=Number(event.target.dataset.editResult);if(!id)return;const row=workspace.results.find((x)=>x.id===id);if(!row)return;
+      const actual=window.prompt("Actual value",row.actual??"");if(actual===null)return;
+      const comment=window.prompt("Comment",row.comment||"");if(comment===null)return;
+      if(!window.confirm("Save this corrected KPI result to the audit history?"))return;
+      try{await writeJson(`/api/v1/operations/kpi-results/${id}`,"PATCH",{actual:Number(actual),comment});await loadWorkspaceRecords();setNotice("workspace-message","KPI result updated.");}catch(e){setNotice("workspace-error",e.message);}
+    });
+    ws("blockers-body").addEventListener("change",async(event)=>{
+      const ownerId=event.target.dataset.blockerOwner;
+      if(ownerId){try{await writeJson(`/api/v1/operations/blockers/${encodeURIComponent(ownerId)}`,"PATCH",{status:workspace.blockers.find((b)=>b.id===ownerId)?.status,owner_person_id:event.target.value||null});await loadWorkspaceRecords();setNotice("workspace-message","Blocker owner updated.");}catch(e){setNotice("workspace-error",e.message);}return;}
+      const id=event.target.dataset.blocker;if(!id)return;if(!window.confirm(`Change blocker status to ${event.target.value}?`)){loadWorkspaceRecords();return;}
+      try{await writeJson(`/api/v1/operations/blockers/${encodeURIComponent(id)}`,"PATCH",{status:event.target.value});await loadWorkspaceRecords();setNotice("workspace-message","Blocker updated.");}catch(e){setNotice("workspace-error",e.message);}
+    });
+    ws("approvals-body").addEventListener("click",async(event)=>{
+      const id=event.target.dataset.changeId,action=event.target.dataset.changeAction;if(!id||!action)return;
+      if(action!=="confirm"&&!window.confirm(`${action} this request?`))return;
+      try{await writeJson(`/api/v1/operations/changes/${encodeURIComponent(id)}/${action}`,"POST",{});await loadWorkspaceRecords();setNotice("workspace-message",`Request ${action}ed.`);}catch(e){setNotice("workspace-error",e.message);}
+    });
+  }
+
   async function refreshAll() {
     if (state.loading || dashboard.hidden) return;
     state.loading = true;
     byId("refresh-button").disabled = true;
     byId("refresh-button").textContent = "Refreshing…";
     try {
+      if(state.access==="staff") { await loadWorkspaceRecords(); return; }
       await loadOverview();
-      await Promise.all([loadAudit(), loadAnalytics(), loadOperationalRecords()]);
+      await Promise.all([loadAudit(), loadAnalytics(), loadOperationalRecords(), loadWorkspaceRecords()]);
     } catch (error) {
       if (!dashboard.hidden) setNotice("global-error", error.message || "Could not load Polaris status.");
     } finally {
@@ -587,10 +844,11 @@
     try {
       const session = await requestJson("/admin/session");
       state.csrf = session.csrf_token;
+      state.access=session.access==="admin"?"admin":session.access;
       signedOut.hidden = true;
       dashboard.hidden = false;
       logoutButton.hidden = false;
-      environmentPill.textContent = "Authenticated · read-only";
+      environmentPill.textContent = "Authenticated";
       environmentPill.className = "environment-pill";
       await refreshAll();
     } catch (error) {
@@ -599,6 +857,7 @@
     }
   }
 
+  bindWorkspaceActions();
   byId("refresh-button").addEventListener("click", refreshAll);
   byId("audit-filter-form").addEventListener("submit", (event) => {
     event.preventDefault();

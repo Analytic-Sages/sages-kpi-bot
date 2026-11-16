@@ -1,7 +1,7 @@
 """Google OIDC sign-in and allowlisted admin sessions for Polaris.
 
 This module provides authentication only. It intentionally does not enable or expose
-Google Sheets mutations. Session cookies are signed, HttpOnly, and time-limited.
+Operational database mutations. Session cookies are signed, HttpOnly, and time-limited.
 """
 from __future__ import annotations
 
@@ -259,7 +259,7 @@ def create_admin_auth_router(settings: Settings) -> APIRouter:
                 "authenticated": True,
                 "email": session["email"],
                 "csrf_token": session["csrf"],
-                "access": "staff" if session.get("staff_identity") is True else "read_only",
+                "access": "admin" if session["email"].casefold() in _admin_emails(settings) else "staff",
             }
         )
 

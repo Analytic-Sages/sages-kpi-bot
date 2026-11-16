@@ -59,8 +59,20 @@ def test_allowlisted_signed_session_can_read_admin_session():
         "authenticated": True,
         "email": "admin@example.com",
         "csrf_token": "csrf-token",
-        "access": "read_only",
+        "access": "admin",
     }
+
+
+def test_linked_staff_session_is_identified_as_staff():
+    settings = configured_settings()
+    client = client_for(settings)
+    cookie = _serializer(settings, "polaris-admin-session-v1").dumps({
+        "email": "staff@example.com", "staff_identity": True, "csrf": "csrf-token", "issued_at": 1,
+    })
+    client.cookies.set(SESSION_COOKIE, cookie)
+    response = client.get("/admin/session")
+    assert response.status_code == 200
+    assert response.json()["access"] == "staff"
 
 
 def test_signed_session_for_non_allowlisted_email_is_rejected():

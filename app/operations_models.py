@@ -35,6 +35,8 @@ class Team(Base):
     team_id: Mapped[str] = mapped_column(String(32), primary_key=True)
     name: Mapped[str] = mapped_column(String(120), unique=True, nullable=False)
     lead_person_id: Mapped[str | None] = mapped_column(ForeignKey("people.person_id", ondelete="SET NULL"))
+    notes: Mapped[str | None] = mapped_column(Text)
+    source_data: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -45,6 +47,13 @@ class Role(Base):
     core_domain: Mapped[str | None] = mapped_column(String(160))
     responsibilities: Mapped[str | None] = mapped_column(Text)
     output_metrics: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    source_data: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+
+
+class RolePermission(Base):
+    __tablename__ = "role_permissions"
+    role_id: Mapped[str] = mapped_column(ForeignKey("roles.role_id", ondelete="CASCADE"), primary_key=True)
+    permission: Mapped[str] = mapped_column(String(64), primary_key=True)
 
 
 class Person(Base):
@@ -62,6 +71,8 @@ class Person(Base):
     end_date: Mapped[date | None] = mapped_column(Date)
     replacement_for: Mapped[str | None] = mapped_column(ForeignKey("people.person_id", ondelete="SET NULL"))
     notify: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    notes: Mapped[str | None] = mapped_column(Text)
+    source_data: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     last_digest_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
@@ -82,6 +93,11 @@ class KPI(Base):
     unit: Mapped[str | None] = mapped_column(String(40))
     data_source: Mapped[str] = mapped_column(String(16), default="Manual", nullable=False)
     active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    notes: Mapped[str | None] = mapped_column(Text)
+    period_start: Mapped[date | None] = mapped_column(Date)
+    checkin_due_date: Mapped[date | None] = mapped_column(Date)
+    checkin_status: Mapped[str | None] = mapped_column(String(40))
+    source_data: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     __table_args__ = (
         CheckConstraint("direction IN ('Increase','Decrease','Maintain')", name="ck_kpis_direction"),
         CheckConstraint("frequency IN ('Daily','Weekly','Monthly','Quarterly')", name="ck_kpis_frequency"),
@@ -101,6 +117,7 @@ class KPIResult(Base):
     next_action: Mapped[str | None] = mapped_column(Text)
     logged_by: Mapped[str | None] = mapped_column(ForeignKey("people.person_id", ondelete="SET NULL"))
     logged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    source_data: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     __table_args__ = (UniqueConstraint("kpi_id", "period_start", name="uq_kpi_results_period"),)
 
 
@@ -158,8 +175,9 @@ class WeeklyReview(Base):
     key_achievement: Mapped[str | None] = mapped_column(Text)
     challenge: Mapped[str | None] = mapped_column(Text)
     decision: Mapped[str | None] = mapped_column(Text)
-    submitted_by: Mapped[str] = mapped_column(ForeignKey("people.person_id", ondelete="RESTRICT"), nullable=False)
+    submitted_by: Mapped[str | None] = mapped_column(ForeignKey("people.person_id", ondelete="RESTRICT"))
     submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    source_data: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     __table_args__ = (UniqueConstraint("team_id", "week_start", name="uq_weekly_reviews_team_week"),)
 
 
@@ -167,10 +185,11 @@ class ReviewAction(Base):
     __tablename__ = "review_actions"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     review_id: Mapped[int] = mapped_column(ForeignKey("weekly_reviews.id", ondelete="CASCADE"), nullable=False)
-    owner_person_id: Mapped[str] = mapped_column(ForeignKey("people.person_id", ondelete="RESTRICT"), nullable=False)
+    owner_person_id: Mapped[str | None] = mapped_column(ForeignKey("people.person_id", ondelete="RESTRICT"))
     description: Mapped[str] = mapped_column(Text, nullable=False)
     due_date: Mapped[date | None] = mapped_column(Date)
     status: Mapped[str] = mapped_column(String(16), default="Open", nullable=False)
+    source_data: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     __table_args__ = (CheckConstraint("status IN ('Open','Done','Dropped')", name="ck_review_action_status"),)
 
 
@@ -178,12 +197,14 @@ class Blocker(Base):
     __tablename__ = "blockers"
     blocker_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     task_id: Mapped[str | None] = mapped_column(ForeignKey("tasks.task_id", ondelete="SET NULL"))
-    reported_by: Mapped[str] = mapped_column(ForeignKey("people.person_id", ondelete="RESTRICT"), nullable=False)
-    telegram_message_id: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    reported_by: Mapped[str | None] = mapped_column(ForeignKey("people.person_id", ondelete="RESTRICT"))
+    owner_person_id: Mapped[str | None] = mapped_column(ForeignKey("people.person_id", ondelete="SET NULL"))
+    telegram_message_id: Mapped[str | None] = mapped_column(String(100), unique=True)
     description: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(String(16), default="Open", nullable=False)
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    source_data: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
 
 
 class Setting(Base):
@@ -198,7 +219,7 @@ class Notification(Base):
     __tablename__ = "notifications"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     person_id: Mapped[str | None] = mapped_column(ForeignKey("people.person_id", ondelete="SET NULL"))
-    chat_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    chat_id: Mapped[str | None] = mapped_column(String(64))
     type: Mapped[str] = mapped_column(String(40), nullable=False)
     reference_id: Mapped[str | None] = mapped_column(String(64))
     message: Mapped[str] = mapped_column(Text, nullable=False)
@@ -207,9 +228,20 @@ class Notification(Base):
     error: Mapped[str | None] = mapped_column(Text)
     dedupe_key: Mapped[str] = mapped_column(String(240), unique=True, nullable=False)
     available_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    delivery_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     __table_args__ = (Index("ix_notifications_dispatch", "status", "available_at"),)
+
+
+class NotificationAttempt(Base):
+    __tablename__ = "notification_attempts"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    notification_id: Mapped[int] = mapped_column(ForeignKey("notifications.id", ondelete="CASCADE"), nullable=False)
+    attempted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    outcome: Mapped[str] = mapped_column(String(16), nullable=False)
+    error: Mapped[str | None] = mapped_column(Text)
+    __table_args__ = (Index("ix_notification_attempts_notification", "notification_id", "attempted_at"),)
 
 
 class ChangeRequest(Base):
@@ -256,3 +288,12 @@ class JobRun(Base):
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     status: Mapped[str] = mapped_column(String(20), nullable=False)
     detail: Mapped[str | None] = mapped_column(Text)
+
+
+class WebhookEvent(Base):
+    __tablename__ = "webhook_events"
+    event_id: Mapped[str] = mapped_column(String(200), primary_key=True)
+    event_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    body_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    __table_args__ = (Index("ix_webhook_events_received", "received_at"),)

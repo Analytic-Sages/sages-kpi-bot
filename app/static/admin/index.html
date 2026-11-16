@@ -4,17 +4,17 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="light" />
-    <meta name="description" content="Polaris administrator control centre" />
-    <title>Polaris · Admin Control Centre</title>
+    <meta name="description" content="SageOps administrator control centre" />
+    <title>SageOps · Admin Control Centre</title>
     <link rel="stylesheet" href="/control/app.css" />
     <script src="/control/app.js" defer></script>
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
     <header class="topbar">
-      <a class="brand" href="/control/" aria-label="Polaris Admin home">
-        <span class="brand-mark" aria-hidden="true">P</span>
-        <span><strong>POLARIS</strong><small>ADMIN CONTROL CENTRE</small></span>
+      <a class="brand" href="/control/" aria-label="SageOps Admin home">
+        <span class="brand-mark" aria-hidden="true">S</span>
+        <span><strong>SAGEOPS</strong><small>ADMIN CONTROL CENTRE</small></span>
       </a>
       <div class="topbar-right">
         <span class="environment-pill" id="environment-pill">Checking session</span>
@@ -25,10 +25,10 @@
     <main id="main" class="page-shell">
       <section id="signed-out" class="sign-in-panel" aria-labelledby="signin-title">
         <p class="eyebrow">SECURE OPERATIONS</p>
-        <h1 id="signin-title">Welcome to Polaris.</h1>
+        <h1 id="signin-title">Welcome to SageOps.</h1>
         <p class="lead">Sign in with an approved Google account to view system status and audit history.</p>
         <a class="button button-primary" href="/auth/login">Continue with Google <span aria-hidden="true">↗</span></a>
-        <p class="muted small">Access is restricted to accounts configured by the Polaris administrator.</p>
+        <p class="muted small">Access is restricted to accounts configured by the SageOps administrator.</p>
       </section>
 
       <section id="dashboard" hidden>
@@ -54,7 +54,7 @@
 
         <section aria-labelledby="performance-heading" class="section-block analytics-section">
           <div class="section-heading">
-            <div><p class="eyebrow">TEAM ACCOUNTABILITY</p><h2 id="performance-heading">Team performance analytics</h2><p class="muted">Live read-only aggregates from the operational workbook.</p></div>
+            <div><p class="eyebrow">TEAM ACCOUNTABILITY</p><h2 id="performance-heading">Team performance analytics</h2><p class="muted">Live aggregates from PostgreSQL operational records.</p></div>
             <span id="analytics-source" class="source-pill">Waiting for data</span>
           </div>
           <form id="analytics-filter-form" class="filter-bar analytics-filters">
@@ -143,8 +143,8 @@
                 <option value="uncertain">Uncertain</option>
               </select>
             </label>
-            <label>Worksheet
-              <input id="worksheet-filter" name="worksheet" type="text" maxlength="128" placeholder="Exact worksheet name" />
+            <label>Record type
+              <input id="worksheet-filter" name="worksheet" type="text" maxlength="128" placeholder="Filter by record type" />
             </label>
             <button class="button button-secondary" type="submit">Apply filters</button>
           </form>
@@ -166,7 +166,7 @@
 
         <section class="section-block" aria-labelledby="task-records-heading">
           <div class="section-heading">
-            <div><p class="eyebrow">OPERATIONAL WORK</p><h2 id="task-records-heading">Task register</h2><p class="muted">Read-only task records from Google Sheets. Editing remains gated.</p></div>
+            <div><p class="eyebrow">OPERATIONAL WORK</p><h2 id="task-records-heading">Task register</h2><p class="muted">Task records from the PostgreSQL operations database.</p></div>
             <span id="tasks-count" class="muted small">Waiting for data</span>
           </div>
           <form id="task-record-filter" class="filter-bar">
@@ -206,10 +206,48 @@
           <div id="kpis-error" class="notice notice-error" role="alert" hidden></div>
           <div class="table-wrap"><table><thead><tr><th>KPI</th><th>Owner</th><th>Team</th><th>Target</th><th>Latest actual</th><th>Week</th><th>State</th></tr></thead><tbody id="kpi-records-body"><tr><td colspan="7" class="empty-cell">Loading KPIs…</td></tr></tbody></table></div>
           <div class="pagination"><span id="kpis-page-count" class="muted small">Loading records…</span><div class="pagination-actions"><button id="kpis-previous" class="button button-quiet" type="button" disabled>Previous</button><button id="kpis-next" class="button button-quiet" type="button" disabled>Next</button></div></div>
-          <p class="muted small">Task and KPI editing is not exposed. Editable fields and status transitions must be explicitly approved and validated before a write endpoint is enabled.</p>
+          <p class="muted small">Changes are handled by authorized PostgreSQL operations endpoints under the configured write gate.</p>
+        </section>
+
+        <section id="operations-workspace" class="section-block" aria-labelledby="operations-heading">
+          <div class="section-heading"><div><p class="eyebrow">STAFF OPERATIONS</p><h2 id="operations-heading">Manage daily operations</h2><p class="muted">Forms submit to authenticated PostgreSQL APIs. Your access determines which actions are allowed.</p></div><button id="workspace-refresh" class="button button-secondary" type="button">Refresh operations</button></div>
+          <div id="workspace-message" class="notice" role="status" aria-live="polite" hidden></div>
+          <div id="workspace-error" class="notice notice-error" role="alert" hidden></div>
+          <nav class="ops-nav" aria-label="Operations sections"><a href="#directory-workspace">Directory</a><a href="#kpi-workspace">KPIs</a><a href="#task-workspace">Tasks</a><a href="#review-workspace">Reviews</a><a href="#blocker-workspace">Blockers</a><a href="#approval-workspace">Approvals</a><a href="#notification-workspace">Notifications</a></nav>
+
+          <section id="directory-workspace" class="ops-panel"><h3>Teams, staff and roles</h3>
+            <form id="team-form" class="ops-form"><input name="id" type="hidden"><label>Team name<input name="name" required minlength="2"></label><label>Team lead<select name="lead_person_id"><option value="">No lead assigned</option></select></label><label>Notes<input name="notes"></label><button class="button button-primary">Save team</button><button class="button button-quiet" type="reset">Clear</button></form><div class="table-wrap"><table><thead><tr><th>Team</th><th>Lead</th><th>Notes</th><th>Actions</th></tr></thead><tbody id="teams-management-body"></tbody></table></div>
+            <form id="staff-form" class="ops-form"><input name="id" type="hidden"><label>Full name<input name="full_name" required minlength="2"></label><label>Email<input name="email" type="email"></label><label>Team<select name="team_id"><option value="">Unassigned</option></select></label><label>Role<select name="role_id"><option value="">No role</option></select></label><label>Reports to<select name="reports_to"><option value="">No manager</option></select></label><label>Status<select name="status"><option>Active</option><option>On Leave</option><option>Inactive</option></select></label><label>Telegram chat ID<input name="telegram_chat_id"></label><button class="button button-primary">Save staff</button><button class="button button-quiet" type="reset">Clear</button></form>
+            <label>Edit existing role<select id="role-edit-select"><option value="">Create new role below</option></select></label><form id="role-form" class="ops-form"><input name="id" type="hidden"><label>Role name<input name="name" required minlength="2"></label><label>Core domain<input name="core_domain"></label><label>Responsibilities<input name="responsibilities"></label><label>Permissions<select name="permissions" multiple size="5"><option value="team.manage">Manage team</option><option value="staff.manage">Manage staff</option><option value="kpi.manage">Manage KPIs</option><option value="task.manage">Manage tasks</option><option value="review.manage">Manage reviews</option></select></label><button class="button button-primary">Save role</button><button class="button button-quiet" type="reset">Clear</button></form>
+            <div class="table-wrap"><table><thead><tr><th>Staff member</th><th>Team</th><th>Role</th><th>Manager</th><th>Status</th><th>Profile</th></tr></thead><tbody id="staff-body"></tbody></table></div><div id="staff-profile" class="ops-profile" hidden></div>
+          </section>
+
+          <section id="kpi-workspace" class="ops-panel"><h3>KPI definitions and submissions</h3>
+            <form id="kpi-manage-form" class="ops-form"><input name="id" type="hidden"><label>KPI name<input name="name" required minlength="2"></label><label>Team<select name="team_id" required></select></label><label>Owner<select name="owner_person_id"><option value="">Team-level, no individual owner</option></select></label><label>Role<select name="role_id"><option value="">No role</option></select></label><label>Target<input name="target" type="number" step="any" min="0.0001" required></label><label>Unit<input name="unit"></label><label>Direction<select name="direction"><option>Increase</option><option>Decrease</option><option>Maintain</option></select></label><label>Frequency<select name="frequency"><option>Weekly</option><option>Daily</option><option>Monthly</option><option>Quarterly</option></select></label><label>Definition<input name="definition"></label><button class="button button-primary">Save KPI</button><button class="button button-quiet" type="reset">Clear</button></form>
+            <form id="kpi-result-form" class="ops-form"><input name="result_id" type="hidden"><label>KPI<select name="kpi_id" required></select></label><label>Period start<input name="period_start" type="date" required></label><label>Actual<input name="actual" type="number" step="any" required></label><label>Target override (optional)<input name="target_override" type="number" step="any"></label><label>Comment<input name="comment"></label><label>Next action<input name="next_action"></label><button class="button button-primary">Submit result</button></form>
+            <div class="table-wrap"><table><thead><tr><th>KPI</th><th>Period</th><th>Actual</th><th>Target</th><th>Achievement</th><th>Status</th><th>History</th></tr></thead><tbody id="kpi-history-body"></tbody></table></div>
+          </section>
+
+          <section id="task-workspace" class="ops-panel"><h3>Task assignments and updates</h3>
+            <form id="task-create-form" class="ops-form"><label>Task<input name="name" required minlength="2"></label><label>Team<select name="team_id" required></select></label><label>Assignee<select name="assigned_to"><option value="">Unassigned</option></select></label><label>Priority<select name="priority"><option>Low</option><option selected>Medium</option><option>High</option><option>Urgent</option></select></label><label>Deadline<input name="deadline" type="date"></label><label>Reviewer<select name="reviewer"><option value="">No reviewer</option></select></label><button class="button button-primary">Create task</button></form>
+            <form id="task-update-form" class="ops-form"><label>Task<select name="task_id" required></select></label><label>Status<select name="status"><option>Not Started</option><option>In Progress</option><option>In Review</option><option>Blocked</option><option>On Hold</option><option>Completed</option></select></label><label>Progress %<input name="percent_complete" type="number" min="0" max="100"></label><label>Output link<input name="output_link" type="url"></label><label>Blocker / remarks<input name="blocker_note"></label><button class="button button-primary">Update task</button></form>
+            <form id="task-filter-form" class="ops-form"><label>Team<select name="team"><option value="">All available</option></select></label><label>Owner<select name="assignee"><option value="">All available</option></select></label><label>Status<select name="status"><option value="">All statuses</option><option>Not Started</option><option>In Progress</option><option>In Review</option><option>Blocked</option><option>Completed</option></select></label><label>Deadline<select name="deadline"><option value="">Any date</option><option value="overdue">Overdue</option><option value="upcoming">Due in 7 days</option></select></label><button class="button button-secondary">Filter tasks</button></form>
+            <div class="table-wrap"><table><thead><tr><th>Task</th><th>Owner</th><th>Team</th><th>Status</th><th>Priority</th><th>Deadline</th><th>Progress</th></tr></thead><tbody id="ops-tasks-body"></tbody></table></div>
+          </section>
+
+          <section id="review-workspace" class="ops-panel"><h3>Weekly team reviews</h3>
+            <form id="review-form" class="ops-form"><label>Team<select name="team_id" required></select></label><label>Week start<input name="week_start" type="date" required></label><label>Achievements<input name="key_achievement"></label><label>Challenges / blockers<input name="challenge"></label><label>Decisions / next step<input name="decision"></label><label>Follow-up action<input name="action_description"></label><label>Action owner<select name="action_owner"><option value="">No owner</option></select></label><label>Action due date<input name="action_due" type="date"></label><button class="button button-primary">Save weekly review</button></form>
+            <div class="table-wrap"><table><thead><tr><th>Week</th><th>Team</th><th>Achievements</th><th>Challenges</th><th>Actions</th></tr></thead><tbody id="reviews-body"></tbody></table></div>
+          </section>
+
+          <section id="blocker-workspace" class="ops-panel"><h3>Blockers</h3><form id="blocker-form" class="ops-form"><label>Related task<select name="task_id"><option value="">General blocker</option></select></label><label>Responsible owner<select name="owner_person_id"><option value="">No owner assigned</option></select></label><label>Description<input name="description" required minlength="3"></label><button class="button button-primary">Report blocker</button></form><div class="table-wrap"><table><thead><tr><th>Reported</th><th>Task</th><th>Description</th><th>Owner</th><th>Status</th><th>Update</th></tr></thead><tbody id="blockers-body"></tbody></table></div></section>
+
+          <section id="approval-workspace" class="ops-panel"><h3>Approval requests</h3><form id="approval-request-form" class="ops-form"><label>Task<select name="entity_id" required></select></label><label>Requested status<select name="status"><option>In Progress</option><option>Blocked</option><option>Completed</option></select></label><label>Reason<input name="reason" required minlength="3"></label><button class="button button-primary">Request approval</button></form><div class="table-wrap"><table><thead><tr><th>Request</th><th>Requester</th><th>Task</th><th>Changes</th><th>Status</th><th>Decision</th></tr></thead><tbody id="approvals-body"></tbody></table></div></section>
+
+          <section id="notification-workspace" class="ops-panel"><h3>Notifications and reminders</h3><p class="muted small">Delivery attempts, failures and queued reminders are shown directly from PostgreSQL.</p><div class="table-wrap"><table><thead><tr><th>Created</th><th>Type</th><th>Message</th><th>Status</th><th>Attempts</th><th>Last error</th></tr></thead><tbody id="notifications-body"></tbody></table></div></section>
         </section>
       </section>
-      <footer class="footer"><span>Polaris · Analytic Sages</span><span><a href="/privacy">Privacy policy</a> · Admin access · Read-only</span></footer>
+      <footer class="footer"><span>SageOps · Analytic Sages</span><span><a href="/privacy">Privacy policy</a> · Authorized admin access</span></footer>
     </main>
   </body>
 </html>

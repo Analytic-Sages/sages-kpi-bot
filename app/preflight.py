@@ -1,294 +1,62 @@
-"""Read-only production readiness preflight for Polaris.
-
-Run with the same environment and Google authentication settings as the deployment:
-    python -m app.preflight
-
-The command never writes to Google Sheets, sends Telegram messages, or enables integrations.
-"""
+"""Read-only PostgreSQL deployment preflight."""
 from __future__ import annotations
 
-import asyncio
-import os
 from dataclasses import dataclass
-from pathlib import Path
 
-from app.change_requests.workbook_audit import change_policy_findings
+from sqlalchemy import text
+
 from app.config import Settings, get_settings
-from app.sheets.client import GoogleSheetsClient, GoogleSheetsError, google_auth_mode
-
-CORE_SHEETS: dict[str, set[str]] = {
-    "People Directory": {
-        "Person ID",
-        "Full Name",
-        "Team",
-        "Role",
-        "Status",
-    },
-    "KPI Register": {
-        "KPI ID",
-        "Team",
-        "Role",
-        "KPI",
-        "Owner Person ID",
-        "Target",
-        "Active?",
-    },
-    "Weekly KPI Log": {
-        "Week Start",
-        "KPI ID",
-        "Owner Person ID",
-        "Target",
-        "Actual",
-    },
-    "Master Task Tracker": {
-        "Task ID",
-        "Task Name",
-        "Assigned To ID",
-        "Status",
-    },
-}
-
-ACCOUNTABILITY_SAFETY_HEADERS: dict[str, set[str]] = {
-    "People Directory": {
-        "Notify?",
-        "Reachable?",
-        "Telegram Chat ID",
-        "Manager Chat ID",
-    },
-    "Master Task Tracker": {"Remind Now?", "Escalate?"},
-}
+from app.operations_db import database_engine
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class Finding:
     severity: str
     component: str
     message: str
 
 
-def missing_headers(actual: set[str], required: set[str]) -> list[str]:
-    """Return missing header names in stable order for actionable reports."""
-    return sorted(required - actual)
-
-
 def configuration_findings(settings: Settings) -> list[Finding]:
-    """Check configuration presence without printing or returning secret values."""
-    findings: list[Finding] = []
-    if not settings.google_sheet_id:
-        findings.append(Finding("BLOCKER", "Google Sheets", "GOOGLE_SHEET_ID is not configured."))
-    try:
-        auth_mode = google_auth_mode(settings)
-    except GoogleSheetsError as exc:
-        findings.append(Finding("BLOCKER", "Google Sheets", str(exc)))
-    else:
-        findings.append(
-            Finding(
-                "INFO",
-                "Google Sheets",
-                (
-                    "OAuth refresh-token authentication is configured."
-                    if auth_mode == "oauth"
-                    else "Google credentials file is present; its type and access will be verified."
-                ),
-            )
-        )
-
-    if settings.enable_team_workflows or settings.enable_scheduled_workflows:
-        if not settings.telegram_bot_token:
-            findings.append(
-                Finding(
-                    "BLOCKER",
-                    "Telegram",
-                    "Telegram workflows are enabled but the bot token is missing.",
-                )
-            )
-        if not settings.telegram_core_chat_id:
-            findings.append(
-                Finding("BLOCKER", "Telegram", "The private core chat ID is not configured.")
-            )
-    if settings.enable_team_workflows and not settings.job_descriptions_worksheet:
-        findings.append(
-            Finding(
-                "BLOCKER",
-                "Job descriptions",
-                "Team workflows are enabled without an authoritative Job Descriptions worksheet.",
-            )
-        )
-    if settings.enable_analytics:
-        if not settings.ga4_property_id:
-            findings.append(Finding("BLOCKER", "Analytics", "GA4_PROPERTY_ID is missing."))
-        if not settings.youtube_channel_id:
-            findings.append(Finding("BLOCKER", "Analytics", "YOUTUBE_CHANNEL_ID is missing."))
-        if not settings.youtube_api_key:
-            findings.append(
-                Finding(
-                    "WARNING",
-                    "Analytics",
-                    "YOUTUBE_API_KEY is not configured; verify the selected YouTube access method.",
-                )
-            )
-    if settings.enable_webhooks and not settings.webhook_secret:
-        findings.append(
-            Finding("BLOCKER", "Webhooks", "Webhooks are enabled without WEBHOOK_SECRET.")
-        )
-
-    for label, raw_path in (
-        ("Reminder receipts", settings.reminder_receipts_db_path),
-        ("Webhook ledger", settings.webhook_db_path),
-    ):
-        path = Path(raw_path).expanduser()
-        parent = path.parent
-        if parent.exists() and not os.access(parent, os.W_OK):
-            findings.append(
-                Finding("BLOCKER", label, f"Database directory is not writable: {parent}.")
-            )
-        elif not parent.exists():
-            findings.append(
-                Finding("WARNING", label, f"Database directory does not exist yet: {parent}.")
-            )
-
-    if settings.dry_run:
-        findings.append(
-            Finding(
-                "INFO",
-                "Safety",
-                "DRY_RUN is enabled; outbound Telegram sends should remain suppressed.",
-            )
-        )
-    else:
-        findings.append(
-            Finding(
-                "WARNING",
-                "Safety",
-                "DRY_RUN is disabled. Confirm routing, recipients, live schema, and approval "
-                "before operation.",
-            )
-        )
-    if not settings.enable_team_workflows:
-        findings.append(Finding("INFO", "Team workflows", "Team workflows are disabled."))
-    if not settings.enable_scheduled_workflows:
-        findings.append(Finding("INFO", "Scheduler", "Scheduled workflows are disabled."))
-    if not settings.enable_analytics:
-        findings.append(Finding("INFO", "Analytics", "Growth analytics are disabled."))
-    if not settings.enable_webhooks:
-        findings.append(Finding("INFO", "Webhooks", "Inbound webhooks are disabled."))
-    findings.append(
-        Finding(
-            "WARNING",
-            "Deployment",
-            "This check cannot prove that SQLite storage is durable or that only one app "
-            "instance is running.",
-        )
-    )
+    findings = []
+    if not settings.database_url:
+        findings.append(Finding("BLOCKER", "PostgreSQL", "DATABASE_URL is not configured."))
+    if not settings.admin_google_client_id or not settings.admin_google_client_secret or not settings.admin_google_redirect_uri:
+        findings.append(Finding("BLOCKER", "Authentication", "Google OIDC client, secret, and callback URI are required."))
+    if not settings.admin_emails.strip():
+        findings.append(Finding("BLOCKER", "Authentication", "ADMIN_EMAILS must contain at least one administrator."))
+    if not settings.admin_session_secret or len(settings.admin_session_secret) < 32:
+        findings.append(Finding("BLOCKER", "Authentication", "ADMIN_SESSION_SECRET must contain at least 32 characters."))
+    if settings.app_env == "production" and not settings.admin_cookie_secure:
+        findings.append(Finding("BLOCKER", "Authentication", "Secure session cookies are required in production."))
+    if not findings:
+        findings.append(Finding("PASS", "Configuration", "Required database and authentication settings are present."))
     return findings
 
 
-async def sheet_findings(client: GoogleSheetsClient) -> list[Finding]:
-    """Read worksheet headers only; never inspect or print individual people's records."""
-    findings: list[Finding] = []
-    for worksheet_name, required in CORE_SHEETS.items():
-        try:
-            headers = await client.read_headers(worksheet_name)
-        except GoogleSheetsError:
-            findings.append(
-                Finding(
-                    "BLOCKER",
-                    worksheet_name,
-                    "Worksheet is missing, inaccessible, or has invalid headers.",
-                )
-            )
-            continue
-        actual = set(headers)
-        missing = missing_headers(actual, required)
-        if missing:
-            findings.append(
-                Finding(
-                    "BLOCKER",
-                    worksheet_name,
-                    "Missing required headers: " + ", ".join(missing) + ".",
-                )
-            )
-        else:
-            findings.append(Finding("PASS", worksheet_name, "Core headers are present."))
-
-    for worksheet_name, required in ACCOUNTABILITY_SAFETY_HEADERS.items():
-        try:
-            headers = await client.read_headers(worksheet_name)
-        except GoogleSheetsError:
-            # The core-sheet check already reports this as a blocker.
-            continue
-        actual = set(headers)
-        missing = missing_headers(actual, required)
-        if missing:
-            findings.append(
-                Finding(
-                    "BLOCKER",
-                    f"{worksheet_name} / accountability",
-                    "Reminder delivery is blocked until these safety fields exist: "
-                    + ", ".join(missing)
-                    + ".",
-                )
-            )
-        else:
-            findings.append(
-                Finding("PASS", f"{worksheet_name} / accountability", "Safety headers are present.")
-            )
+def database_findings() -> list[Finding]:
+    engine = database_engine()
+    if engine is None:
+        return [Finding("BLOCKER", "PostgreSQL", "Database engine is not configured.")]
     try:
-        policy_findings = await change_policy_findings(client)
-    except Exception:
-        findings.append(
-            Finding(
-                "BLOCKER",
-                "Mutation policy audit",
-                "Could not complete the read-only formula-ownership audit.",
-            )
-        )
-    else:
-        findings.extend(
-            Finding(item.severity, item.component, item.message)
-            for item in policy_findings
-        )
-    return findings
+        with engine.connect() as connection:
+            revision = connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
+            connection.execute(text("SELECT 1 FROM settings LIMIT 0"))
+        return [Finding("PASS", "PostgreSQL", f"Database connected at migration {revision}.")]
+    except Exception as exc:
+        return [Finding("BLOCKER", "PostgreSQL", f"Database connection or schema check failed ({type(exc).__name__}).")]
 
 
 def print_report(findings: list[Finding]) -> int:
-    """Print a concise report and return a nonzero status if any blocker exists."""
     for finding in findings:
         print(f"[{finding.severity}] {finding.component}: {finding.message}")
-    blockers = sum(finding.severity == "BLOCKER" for finding in findings)
-    warnings = sum(finding.severity == "WARNING" for finding in findings)
-    print(f"\nSummary: {blockers} blocker(s), {warnings} warning(s), {len(findings)} finding(s).")
-    if blockers:
-        print("RESULT: NOT READY — resolve blockers before enabling production workflows.")
-        return 1
-    print("RESULT: CONFIGURATION CHECK PASSED — complete the manual deployment/staging gates.")
-    return 0
-
-
-async def run_preflight(settings: Settings) -> int:
-    findings = configuration_findings(settings)
-    if settings.google_sheet_id:
-        try:
-            google_auth_mode(settings)
-        except GoogleSheetsError:
-            return print_report(findings)
-        try:
-            client = await asyncio.to_thread(GoogleSheetsClient.from_settings, settings)
-            findings.extend(await sheet_findings(client))
-        except GoogleSheetsError:
-            findings.append(
-                Finding(
-                    "BLOCKER",
-                    "Google Sheets",
-                    "Could not authenticate or open the spreadsheet; check the configured "
-                    "OAuth settings or credentials file and spreadsheet sharing.",
-                )
-            )
-    return print_report(findings)
+    blocked = any(item.severity == "BLOCKER" for item in findings)
+    print("NOT READY" if blocked else "PREFLIGHT PASSED")
+    return 1 if blocked else 0
 
 
 def main() -> int:
-    return asyncio.run(run_preflight(get_settings()))
+    settings = get_settings()
+    return print_report(configuration_findings(settings) + database_findings())
 
 
 if __name__ == "__main__":

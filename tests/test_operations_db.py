@@ -20,3 +20,4 @@ def test_sageops_schema_contains_core_operational_tables():
     }
     assert expected.issubset(set(Base.metadata.tables))
     assert "audit_log" in Base.metadata.tables
+    assert "owner_person_id" in Base.metadata.tables["blockers"].c

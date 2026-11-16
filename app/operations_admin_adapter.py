@@ -3,10 +3,10 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.operations_db import SessionLocal
-from app.operations_models import KPI, KPIResult, Person, Task, Team
+from app.operations_models import AuditLog, KPI, KPIResult, Person, Task, Team
 
 
 def _status(value: str) -> str:
@@ -53,7 +53,7 @@ def list_tasks(*, limit: int, offset: int, status: str | None, team: str | None,
             overdue = bool(task.deadline and task.deadline < today and state not in {"completed", "cancelled"})
             if status and state != status:
                 continue
-            if team and owner.get("team", "").casefold() != team.casefold():
+            if team and teams.get(task.team_id, "").casefold() != team.casefold():
                 continue
             if person and person.casefold() not in {str(task.assigned_to or "").casefold(), owner.get("name", "").casefold()}:
                 continue
@@ -120,7 +120,7 @@ def list_kpis(*, limit: int, offset: int, team: str | None, person: str | None, 
             team_name = teams.get(kpi.team_id, "Unassigned team")
             if team and team_name.casefold() != team.casefold():
                 continue
-            if person and person.casefold() not in {kpi.owner_person_id.casefold(), owner.get("name", "").casefold()}:
+            if person and person.casefold() not in {(kpi.owner_person_id or "").casefold(), owner.get("name", "").casefold()}:
                 continue
             observation = latest.get(kpi.kpi_id)
             items.append({
@@ -136,6 +136,69 @@ def list_kpis(*, limit: int, offset: int, team: str | None, person: str | None, 
             "data_quality": {"duplicate_person_ids": 0, "duplicate_kpi_ids": 0, "kpis_missing_id": 0},
             "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
         }
+
+def get_kpi(kpi_id: str) -> dict | None:
+    if SessionLocal is None:
+        raise RuntimeError("PostgreSQL is not configured")
+    with SessionLocal() as db:
+        kpi = db.get(KPI, kpi_id)
+        if kpi is None:
+            return None
+        person = db.get(Person, kpi.owner_person_id) if kpi.owner_person_id else None
+        team = db.get(Team, kpi.team_id)
+        latest = db.scalar(
+            select(KPIResult)
+            .where(KPIResult.kpi_id == kpi_id)
+            .order_by(KPIResult.period_start.desc(), KPIResult.id.desc())
+            .limit(1)
+        )
+        return {
+            "source": {"system": "PostgreSQL", "status": "read_success", "table": "kpis"},
+            "item": {
+                "id": kpi.kpi_id,
+                "name": kpi.name,
+                "owner_id": kpi.owner_person_id,
+                "owner_name": person.full_name if person else "Unassigned",
+                "team": team.name if team else "Unassigned team",
+                "target": str(kpi.target),
+                "actual": str(latest.actual) if latest and latest.actual is not None else None,
+                "week_start": latest.period_start.isoformat() if latest else None,
+                "active": kpi.active,
+                "direction": kpi.direction,
+                "frequency": kpi.frequency,
+                "definition": kpi.definition,
+                "unit": kpi.unit,
+            },
+        }
+
+def list_audit_events(*, limit: int, offset: int, outcome: str | None, worksheet: str | None) -> dict:
+    if SessionLocal is None:
+        raise RuntimeError("PostgreSQL is not configured")
+    with SessionLocal() as db:
+        query = select(AuditLog)
+        if outcome:
+            query = query.where(AuditLog.outcome == outcome)
+        if worksheet:
+            query = query.where(AuditLog.entity == worksheet)
+        total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
+        rows = db.scalars(query.order_by(AuditLog.at.desc(), AuditLog.audit_id.desc()).limit(limit).offset(offset)).all()
+        items = []
+        for row in rows:
+            field = row.field
+            items.append({
+                "event_id": row.audit_id,
+                "created_at": row.at.isoformat() if row.at else None,
+                "request_id": row.request_id,
+                "actor_id": row.actor,
+                "action": field,
+                "worksheet": row.entity,
+                "record_id": row.entity_id,
+                "changed_fields": [field],
+                "before": {field: row.old},
+                "after": {field: row.new},
+                "outcome": row.outcome,
+            })
+        return {"items": items, "total": total}
 
 def team_performance(*, today: date, start_date: date, end_date: date, team_filter: str | None, person_filter: str | None, status_filter: str | None) -> dict:
     """Build the existing dashboard analytics contract from normalized PostgreSQL records."""
