@@ -16,8 +16,8 @@ from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
 
 from app.admin_auth import require_admin
-from app.operations_admin_adapter import team_performance as database_team_performance
 from app.analytics.team_performance import build_team_performance
+from app.operations_admin_adapter import team_performance as database_team_performance
 from app.audit.store import SQLiteAuditLog
 from app.sheets.client import GoogleSheetsClient, GoogleSheetsError
 
