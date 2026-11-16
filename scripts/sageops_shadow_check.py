@@ -1,6 +1,7 @@
 """Daily workbook/PostgreSQL parity check for the seven-day SageOps shadow window."""
 from __future__ import annotations
-import argparse,json
+import argparse
+import json
 from datetime import UTC,datetime,timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
