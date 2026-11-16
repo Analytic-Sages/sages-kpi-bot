@@ -305,9 +305,12 @@ def _source(row: dict[str, Any]) -> dict[str, Any]:
 
 
 def _empty_target(db) -> bool:
+    # Worker execution history is operational metadata, not imported business data.
+    # Preserve existing job_runs rows and allow them to coexist with the one-time
+    # workbook import; all business tables must still be empty.
     tables = (Team, Role, RolePermission, Person, KPI, KPIResult, Task, TaskDetail,
               TaskReminderState, WeeklyReview, ReviewAction, Blocker, Notification,
-              NotificationAttempt, ChangeRequest, AuditLog, TelegramUpdate, WebhookEvent, JobRun)
+              NotificationAttempt, ChangeRequest, AuditLog, TelegramUpdate, WebhookEvent)
     return all(db.scalar(select(model).limit(1)) is None for model in tables)
 
 
