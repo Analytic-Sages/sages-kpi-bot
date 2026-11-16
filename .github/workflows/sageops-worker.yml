@@ -43,6 +43,23 @@ jobs:
             exit 1
           fi
 
+      - name: Validate live Telegram configuration
+        env:
+          TELEGRAM_TEST_MODE: ${{ vars.TELEGRAM_TEST_MODE || 'true' }}
+          DRY_RUN: ${{ vars.DRY_RUN || 'true' }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        run: |
+          if [ "$TELEGRAM_TEST_MODE" != "true" ]; then
+            if [ -z "$TELEGRAM_BOT_TOKEN" ]; then
+              echo "::error::Live Telegram delivery requires the TELEGRAM_BOT_TOKEN secret."
+              exit 1
+            fi
+            if [ "$DRY_RUN" != "false" ]; then
+              echo "::error::Set DRY_RUN=false before enabling live Telegram delivery."
+              exit 1
+            fi
+          fi
+
       - name: Process one SageOps worker cycle
         env:
           APP_ENV: production
