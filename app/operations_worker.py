@@ -10,7 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from app.config import get_settings
 from app.operations_db import SessionLocal
 from app.operations_models import JobRun,KPI,KPIResult,Notification,Person,ReviewAction,Setting,Task,TaskReminderState,Team,WeeklyReview
-from app.operations_rules import reminder_decision,escalation_due
+from app.operations_rules import reminder_decision,escalation_due,next_allowed_send
 from zoneinfo import ZoneInfo
 logging.basicConfig(level=os.getenv("LOG_LEVEL","INFO"));log=logging.getLogger("sageops.worker");settings=get_settings()
 def val(db,key,default):
@@ -58,7 +58,7 @@ def scan_digests():
         tz=val(db,"timezone","Africa/Lagos")
         local=now.astimezone(ZoneInfo(tz))
         hour,minute=(str(val(db,"digest_time","08:00")).split(":")+["0"])[:2]
-        if (local.hour,local.minute)<(int(hour),int(minute)):
+        if (local.hour,local.minute)<(int(hour),int(minute)) or local.hour>=20:
             return 0
         today=local.date()
         people=db.scalars(select(Person).where(Person.status=="Active",Person.notify.is_(True),Person.telegram_chat_id.is_not(None))).all()
@@ -98,7 +98,7 @@ def scan_digests():
                 lead=db.get(Person,team.lead_person_id)
                 if not exists and lead:
                     queued+=int(queue(db,lead,"weekly_review_due",team.team_id,
-                                      f"Weekly review due: please submit the {team.name} review for week starting {week_start}.",now))
+                                      f"Weekly review due: please submit the {team.name} review for week starting {week_start}.",next_allowed_send(now,timezone=tz)))
         db.commit()
     return queued
 
