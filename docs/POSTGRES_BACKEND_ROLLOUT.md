@@ -24,7 +24,7 @@
 6. Take a database snapshot and run the importer with --apply. The database must be empty.
 7. Verify GET /api/v1/operations/health and the normalized records as an admin.
 
-The uploaded workbook currently has 9 teams, 9 people, 126 KPI definitions and 1 populated task. KPI117–KPI126 have no Owner Person ID. The reconciliation report therefore blocks import until these ten KPI ownership fields are resolved. Weekly KPI Log and Weekly Review currently have no populated rows. Do not invent owner assignments.
+The uploaded workbook currently has 9 teams, 9 people, 126 KPI definitions and 1 populated task. KPI117–KPI126 have no Owner Person ID. These are retained as team-level KPIs with a null individual owner and are reported as warnings, not silently assigned. Weekly KPI Log and Weekly Review currently have no populated rows.
 
 ## Authentication and authorization
 
