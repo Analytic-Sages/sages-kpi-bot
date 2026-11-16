@@ -55,7 +55,9 @@ def reminder_decision(*, status: str, deadline: date | None, assigned_to: str | 
                       person_active: bool, notify: bool, chat_id: str | None,
                       snooze_until: datetime | None, last_reminded_at: datetime | None,
                       now: datetime, timezone: str = "Africa/Lagos",
-                      due_soon_days: int = 2, cooldown_hours: int = 20) -> ReminderDecision:
+                      due_soon_days: int = 2, cooldown_hours: int = 20,
+                      quiet_start: time = time(20, 0),
+                      quiet_end: time = time(7, 0)) -> ReminderDecision:
     kind = task_reminder_type(status=status, deadline=deadline, assigned_to=assigned_to,
                               today=now.astimezone(ZoneInfo(timezone)).date(),
                               due_soon_days=due_soon_days)
@@ -67,7 +69,7 @@ def reminder_decision(*, status: str, deadline: date | None, assigned_to: str | 
         return ReminderDecision(kind, False, "snoozed", snooze_until)
     if last_reminded_at and last_reminded_at + timedelta(hours=cooldown_hours) > now:
         return ReminderDecision(kind, False, "cooldown")
-    send_after = next_allowed_send(now, timezone=timezone)
+    send_after = next_allowed_send(now, timezone=timezone, quiet_start=quiet_start, quiet_end=quiet_end)
     return ReminderDecision(kind, True, "queued", send_after)
 
 
