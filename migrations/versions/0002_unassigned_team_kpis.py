@@ -12,25 +12,12 @@ branch_labels = None
 depends_on = None
 
 def upgrade():
-    op.alter_column(
-        "kpis",
-        "owner_person_id",
-        existing_type=sa.String(length=32),
-        nullable=True,
-    )
-    op.alter_column(
-        "kpis",
-        "owner_person_id",
-        existing_type=sa.String(length=32),
-        existing_nullable=True,
-        nullable=True,
-    )
+    op.alter_column("kpis", "owner_person_id", existing_type=sa.String(length=32), nullable=True)
 
 def downgrade():
-    op.execute("DELETE FROM kpis WHERE owner_person_id IS NULL")
-    op.alter_column(
-        "kpis",
-        "owner_person_id",
-        existing_type=sa.String(length=32),
-        nullable=False,
-    )
+    has_unassigned = op.get_bind().execute(
+        sa.text("SELECT EXISTS (SELECT 1 FROM kpis WHERE owner_person_id IS NULL)")
+    ).scalar()
+    if has_unassigned:
+        raise RuntimeError("Cannot downgrade: unassigned team KPIs would be lost")
+    op.alter_column("kpis", "owner_person_id", existing_type=sa.String(length=32), nullable=False)
