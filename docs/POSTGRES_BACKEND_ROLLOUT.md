@@ -1,51 +1,52 @@
 # SageOps PostgreSQL backend rollout
 
-## Current implementation increment
+## Implemented in the current branch
 
-This branch introduces the PostgreSQL persistence foundation and a protected, read-only normalized API under `/api/v1/operations`. It does not yet cut the existing admin frontend, Telegram bot, or scheduler over from Google Sheets.
+- PostgreSQL schema and protected normalized read API.
+- Existing Control Centre adapter behind OPERATIONS_DB_READS_ENABLED.
+- XLSX importer with actual header-name parsing, business-row filtering, duplicate/reference checks and explicit --apply.
+- Google OIDC active-staff identity matching and team-scoped permissions.
+- Task creation/progress/manager edits with optimistic concurrency.
+- KPI creation/maintenance and KPI result submission.
+- Weekly review submission, action management and listing.
+- Confirm-then-approve task change requests, separate approver and append-only audit events.
+- Private Telegram webhook commands with secret validation and update ID deduplication.
+- Separate worker for reminder/escalation queueing, retrying and delivery records.
+- Daily parity verifier for the seven-day shadow period.
 
-The domain schema includes teams, roles, people, KPIs, KPI results, tasks, task details, task reminder state, weekly reviews, review actions, blockers, settings, notifications, change requests, append-only audit history, Telegram update deduplication, and job-run observability.
+## Provisioning and migration
 
-## Provisioning
+1. Provision managed PostgreSQL with automated backups and point-in-time recovery.
+2. Set DATABASE_URL in the staging secret store.
+3. Run alembic upgrade head.
+4. Run python -m scripts.import_sageops_workbook workbook.xlsx --report reconciliation.json.
+5. Review every duplicate and reference issue. The importer will not apply unless ready=true.
+6. Take a database snapshot and run the importer with --apply. The database must be empty.
+7. Verify GET /api/v1/operations/health and the normalized records as an admin.
 
-1. Create a managed PostgreSQL database with automated backups and point-in-time recovery.
-2. Set `DATABASE_URL` in the deployment secret/environment store. Use the provider's pooled connection string only if it supports the application's connection pattern; otherwise use its direct connection string for migrations.
-3. Deploy this branch to a staging service, not the production service.
-4. Run `alembic upgrade head` from the repository root.
-5. Verify `GET /api/v1/operations/health` while signed in as an allowlisted admin.
-6. Keep all existing Telegram, scheduled workflow, and write flags disabled.
+The uploaded workbook currently has 9 teams, 9 people, 126 KPI definitions and 1 populated task. KPI117–KPI126 have no Owner Person ID. These are retained as team-level KPIs with a null individual owner and are reported as warnings, not silently assigned. Weekly KPI Log and Weekly Review currently have no populated rows.
 
-## API
+## Authentication and authorization
 
-All endpoints require the existing authenticated admin session:
+Google OIDC admin accounts remain allowlisted through ADMIN_EMAILS. Other users may sign in only when their verified email matches an active People Directory record in PostgreSQL. Staff permissions are team-scoped: team leads/manager roles can manage their team; task assignees can update their own progress; KPI owners can submit results; team leads/managers submit weekly reviews. All writes require X-CSRF-Token.
 
-- `GET /api/v1/operations/health`
-- `GET /api/v1/operations/teams`
-- `GET /api/v1/operations/roles`
-- `GET /api/v1/operations/people`
-- `GET /api/v1/operations/tasks`
-- `GET /api/v1/operations/kpis`
-- `GET /api/v1/operations/kpi-results`
+## Write and notification gates
 
-The current Control Centre API contract is deliberately unchanged in this increment. Its existing `/api/v1/admin/*` routes still read Google Sheets until the database migration, parity checks, and explicit cutover are completed.
+- OPERATIONS_DB_WRITES_ENABLED=false by default. Enable only in staging after database migration and import.
+- OPERATIONS_NOTIFICATIONS_ENABLED=false by default.
+- Telegram webhook requires TELEGRAM_WEBHOOK_SECRET and must be configured with Telegram's setWebhook secret_token option.
+- Actual delivery also requires TELEGRAM_BOT_TOKEN, the database bot_enabled setting, and DRY_RUN=false.
+- Keep legacy Google Sheets writes disabled after PostgreSQL cutover. PostgreSQL is the only writer.
 
-## Safety and cutover rules
+Run the separate worker using python -m app.operations_worker. It records durable notification state and job runs. Review queue failures and retries before enabling live delivery.
 
-- Do not enable writes merely because the schema migrated.
-- Do not run a production import until the workbook's actual headers, row counts, formulas, and data-quality report have been reviewed.
-- Import is a one-time, repeatable migration operation with an explicit `--apply` flag; it must never sync edits bidirectionally.
-- Keep the spreadsheet unchanged during shadow mode. Compare database-derived dashboard and reminder decisions with the existing workbook for at least seven days.
-- Switch the frontend and bot to PostgreSQL only after the API contract tests, migration checks, data parity, and rollback plan pass.
-- Once cut over, PostgreSQL is the sole writer. Google Sheets becomes a one-way export/report only.
-- Audit rows are protected against UPDATE and DELETE by a PostgreSQL trigger. Production database credentials should also use a restricted application role; migrations should use a separate owner role.
+## Seven-day shadow period
 
-## Remaining implementation gates
+Export the workbook read-only each day and run:
+python -m scripts.sageops_shadow_check workbook.xlsx
 
-1. Add a validated workbook import and reconciliation report using the real workbook headers.
-2. Port the existing admin dashboard endpoints to query PostgreSQL while preserving their JSON contracts.
-3. Add the complete staff/team/task/KPI/review CRUD API with role-based authorization.
-4. Implement the audited change-request state machine and transactional optimistic concurrency.
-5. Port reminder, escalation, digest, weekly KPI and Saturday review rules to a database-backed domain service.
-6. Add Telegram webhook ingestion, update deduplication, command handlers and notification dispatch.
-7. Add a separately deployed worker process with PostgreSQL advisory locks and durable job-run records.
-8. Complete shadow-mode parity and controlled staging acceptance before production cutover.
+The verifier compares team, staff, KPI and task IDs and task statuses, and records each pass/failure in job_runs. Complete seven consecutive local-calendar days of clean parity before requesting production cutover. Investigate all differences; verify backups/restores, access controls, rate limits, webhook security, worker recovery and frontend API compatibility.
+
+## Not yet authorized
+
+No live database has been provisioned or migrated in this session. No workbook records have been imported. The Telegram webhook has not been configured with Telegram. The worker has not been deployed as a separate process. The frontend remains on its existing Sheets-backed read path by default. Seven-day shadow testing has not started. This branch must pass CI and staging integration tests before merge or deployment.

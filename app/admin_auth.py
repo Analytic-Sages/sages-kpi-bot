@@ -78,16 +78,26 @@ def _decode_session(request: Request, settings: Settings) -> dict[str, Any] | No
     if not isinstance(payload, dict):
         return None
     email = payload.get("email")
-    if not isinstance(email, str) or email.casefold() not in _admin_emails(settings):
+    if not isinstance(email, str):
+        return None
+    if email.casefold() not in _admin_emails(settings) and payload.get("staff_identity") is not True:
         return None
     if not isinstance(payload.get("csrf"), str) or not payload["csrf"]:
         return None
     return payload
 
 
-def require_admin(request: Request) -> dict[str, Any] | None:
-    """Return the authenticated allowlisted session or None."""
+def require_authenticated(request: Request) -> dict[str, Any] | None:
+    """Return any signed OIDC session, including an active directory staff session."""
     return _decode_session(request, request.app.state.settings)
+
+
+def require_admin(request: Request) -> dict[str, Any] | None:
+    """Return an allowlisted administrator session; staff sessions cannot use admin routes."""
+    session = _decode_session(request, request.app.state.settings)
+    if session is None or session.get("staff_identity") is True:
+        return None
+    return session
 
 
 def create_admin_auth_router(settings: Settings) -> APIRouter:
@@ -189,11 +199,21 @@ def create_admin_auth_router(settings: Settings) -> APIRouter:
             if claims.get("email_verified") is not True or not isinstance(email, str):
                 raise ValueError("Verified email required")
             email = email.strip().casefold()
+            staff_identity = False
             if email not in _admin_emails(settings):
-                logger.warning("admin_signin_rejected reason=not_allowlisted")
-                return JSONResponse(
-                    status_code=403, content={"detail": "This account is not authorized"}
-                )
+                # Staff access requires a verified Google identity linked to an active
+                # PostgreSQL staff-directory record.
+                from sqlalchemy import select
+                from app.operations_db import SessionLocal
+                from app.operations_models import Person
+                if SessionLocal is None:
+                    return JSONResponse(status_code=503, content={"detail": "Staff directory is not available"})
+                with SessionLocal() as db:
+                    person = db.scalar(select(Person).where(Person.email == email, Person.status == "Active"))
+                if person is None:
+                    logger.warning("staff_signin_rejected reason=not_in_active_directory")
+                    return JSONResponse(status_code=403, content={"detail": "This account is not an active staff member"})
+                staff_identity = True
         except (httpx.HTTPError, ValueError, KeyError, TypeError):
             logger.warning("admin_signin_failed reason=provider_validation")
             return JSONResponse(
@@ -209,7 +229,7 @@ def create_admin_auth_router(settings: Settings) -> APIRouter:
             )
 
         session = _serializer(settings, "polaris-admin-session-v1").dumps(
-            {"email": email, "csrf": secrets.token_urlsafe(32), "issued_at": int(time.time())}
+            {"email": email, "staff_identity": staff_identity, "csrf": secrets.token_urlsafe(32), "issued_at": int(time.time())}
         )
         response = RedirectResponse("/control/", status_code=303)
         _safe_cookie(
@@ -231,7 +251,7 @@ def create_admin_auth_router(settings: Settings) -> APIRouter:
 
     @router.get("/admin/session")
     async def admin_session(request: Request) -> JSONResponse:
-        session = require_admin(request)
+        session = require_authenticated(request)
         if session is None:
             return JSONResponse(status_code=401, content={"detail": "Authentication required"})
         return JSONResponse(
@@ -239,7 +259,7 @@ def create_admin_auth_router(settings: Settings) -> APIRouter:
                 "authenticated": True,
                 "email": session["email"],
                 "csrf_token": session["csrf"],
-                "access": "read_only",
+                "access": "staff" if session.get("staff_identity") is True else "read_only",
             }
         )
 
