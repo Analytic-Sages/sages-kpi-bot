@@ -109,3 +109,35 @@ def test_restart_recovers_stale_in_flight_delivery(worker_db):
         assert notification.delivery_started_at is None
         attempt = db.scalar(select(NotificationAttempt).where(NotificationAttempt.notification_id == notification_id))
         assert attempt.outcome == "interrupted"
+
+
+@pytest.mark.asyncio
+async def test_run_once_executes_exactly_one_worker_cycle(monkeypatch):
+    calls = []
+
+    async def one_cycle():
+        calls.append("cycle")
+        return {"recovered": 1, "queued": 2, "sent": 3}
+
+    monkeypatch.setattr(worker, "run_cycle", one_cycle)
+
+    result = await worker.run_once()
+
+    assert calls == ["cycle"]
+    assert result == {"recovered": 1, "queued": 2, "sent": 3}
+
+
+@pytest.mark.asyncio
+async def test_run_once_treats_lock_contention_as_a_safe_skip(monkeypatch):
+    calls = []
+
+    async def locked_cycle():
+        calls.append("cycle")
+        return None
+
+    monkeypatch.setattr(worker, "run_cycle", locked_cycle)
+
+    result = await worker.run_once()
+
+    assert calls == ["cycle"]
+    assert result is None
