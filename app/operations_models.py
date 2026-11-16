@@ -11,7 +11,7 @@ from decimal import Decimal
 
 from sqlalchemy import (
     Boolean, CheckConstraint, Date, DateTime, ForeignKey, Index, Integer, JSON,
-    Numeric, String, Text, UniqueConstraint, func,
+    Numeric, String, Text, UniqueConstraint, func, text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -73,7 +73,7 @@ class KPI(Base):
     __table_args__ = (
         CheckConstraint("direction IN ('Increase','Decrease','Maintain')", name="ck_kpis_direction"),
         CheckConstraint("frequency IN ('Daily','Weekly','Monthly','Quarterly')", name="ck_kpis_frequency"),
-        Index("uq_kpis_owner_name_active", "owner_person_id", "name", unique=True, postgresql_where=active.is_(True)),
+        Index("uq_kpis_owner_name_active", "owner_person_id", text("lower(name)"), unique=True, postgresql_where=text("active IS TRUE")),
     )
 
 
