@@ -251,7 +251,7 @@ def create_admin_auth_router(settings: Settings) -> APIRouter:
                 "authenticated": True,
                 "email": session["email"],
                 "csrf_token": session["csrf"],
-                "access": "staff" if session.get("staff_identity") else "admin",
+                "access": "read_only",
             }
         )
 
