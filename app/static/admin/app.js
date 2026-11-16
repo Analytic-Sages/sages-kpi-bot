@@ -74,8 +74,12 @@
   function renderSummary(overview) {
     const grid = byId("summary-grid");
     grid.replaceChildren();
+    const database = overview.integrations.operations_database;
+    const primaryDataSource = database && database.active
+      ? ["PostgreSQL", database.status, database.note]
+      : ["Google Sheets", overview.integrations.google_sheets.status, overview.integrations.google_sheets.note];
     const integrationEntries = [
-      ["Google Sheets", overview.integrations.google_sheets.status, overview.integrations.google_sheets.note],
+      primaryDataSource,
       ["Telegram", overview.integrations.telegram.status, overview.integrations.telegram.configured ? "Bot token is configured; live connectivity not tested." : "No bot token configured."],
       ["Environment", overview.service.environment, "Application deployment environment."],
       ["Run mode", overview.service.dry_run ? "Dry run" : "Live mode", overview.service.dry_run ? "Write-safety default is active." : "Dry run is off; individual gates still apply."],
