@@ -346,6 +346,26 @@ def _empty_target(db) -> bool:
     return all(db.scalar(select(model).limit(1)) is None for model in tables)
 
 
+SETTING_MAP = {
+    "Cfg_BotEnabled": "bot_enabled",
+    "Cfg_Timezone": "timezone",
+    "Cfg_DueSoonDays": "due_soon_days",
+    "Cfg_OverdueCooldownHrs": "reminder_cooldown_hours",
+    "Cfg_DueCooldownHrs": "due_reminder_cooldown_hours",
+    "Cfg_EscalateAfterDays": "escalate_after_days",
+    "Cfg_EscalationCooldownHrs": "escalation_cooldown_hours",
+    "Cfg_ManagerChatID": "manager_chat_id",
+    "Cfg_OnTrack": "on_track_threshold",
+    "Cfg_AtRisk": "at_risk_threshold",
+    "Cfg_KPILogWeekday": "kpi_log_weekday",
+    "Cfg_ReviewWeekday": "review_weekday",
+    "Cfg_DigestTime": "digest_time",
+    "Cfg_QuietHours": "quiet_hours",
+    "Cfg_WeekStart": "week_start",
+    "Cfg_KPIWeek": "kpi_week",
+}
+
+
 def _setting_value(value: Any) -> Any:
     if isinstance(value, str):
         text = value.strip()
@@ -361,6 +381,27 @@ def _setting_value(value: Any) -> Any:
             except ValueError:
                 return text
     return _json_value(value)
+
+
+def expected_settings(data: dict[str, list[dict[str, Any]]]) -> dict[str, Any]:
+    """Return the exact settings payload the importer would write, without changing data."""
+    expected: dict[str, Any] = {}
+    for row in data["Config"]:
+        key = str(row.get("Setting Key"))
+        value = _setting_value(row.get("Value"))
+        mapped_key = SETTING_MAP.get(key, f"workbook.{key}")
+        if key == "Cfg_BotEnabled":
+            expected["workbook.Cfg_BotEnabled_requested"] = value
+            value = False
+        expected[mapped_key] = value
+
+    lists: dict[str, list[Any]] = {}
+    for row in data["Lists"]:
+        for key, value in row.items():
+            if not key.startswith("_") and value is not None:
+                lists.setdefault(key, []).append(_json_value(value))
+    expected["workbook_lists"] = lists
+    return expected
 
 
 def apply(data: dict[str, list[dict[str, Any]]]) -> dict[str, int]:
@@ -550,20 +591,10 @@ def apply(data: dict[str, list[dict[str, Any]]]) -> dict[str, int]:
             if status in {"Sent", "Failed"}:
                 db.add(NotificationAttempt(notification_id=item.id, attempted_at=sent_at or datetime.now(UTC), outcome=status.casefold(), error=item.error))
 
-        setting_map = {
-            "Cfg_BotEnabled": "bot_enabled", "Cfg_Timezone": "timezone",
-            "Cfg_DueSoonDays": "due_soon_days", "Cfg_OverdueCooldownHrs": "reminder_cooldown_hours",
-            "Cfg_DueCooldownHrs": "due_reminder_cooldown_hours", "Cfg_EscalateAfterDays": "escalate_after_days",
-            "Cfg_EscalationCooldownHrs": "escalation_cooldown_hours", "Cfg_ManagerChatID": "manager_chat_id",
-            "Cfg_OnTrack": "on_track_threshold", "Cfg_AtRisk": "at_risk_threshold",
-            "Cfg_KPILogWeekday": "kpi_log_weekday", "Cfg_ReviewWeekday": "review_weekday",
-            "Cfg_DigestTime": "digest_time", "Cfg_QuietHours": "quiet_hours",
-            "Cfg_WeekStart": "week_start", "Cfg_KPIWeek": "kpi_week",
-        }
         for row in data["Config"]:
             key = str(row.get("Setting Key"))
             value = _setting_value(row.get("Value"))
-            mapped_key = setting_map.get(key, f"workbook.{key}")
+            mapped_key = SETTING_MAP.get(key, f"workbook.{key}")
             # Importing a spreadsheet must never activate outbound messaging.
             # Preserve the requested workbook value separately for an explicit
             # post-migration operator decision.
