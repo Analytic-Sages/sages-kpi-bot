@@ -326,6 +326,7 @@ def test_unimplemented_runtime_settings_are_preserved_without_becoming_live_cont
     assert "quiet_hours" not in expected
     assert "kpi_log_weekday" not in expected
     assert "workbook.Cfg_QuietHours" in result["runtime_setting_review"]["not_read_by_operations_worker"]
+    assert "workbook.Cfg_QuietHours" in result["runtime_setting_review"]["retained_as_workbook_reference"]
 
     engine = create_engine(
         "sqlite+pysqlite:///:memory:",
