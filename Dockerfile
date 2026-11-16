@@ -7,6 +7,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 COPY pyproject.toml README.md ./
 COPY app ./app
+COPY migrations ./migrations
+COPY alembic.ini ./alembic.ini
 RUN pip install --upgrade pip && pip install .
 
 RUN useradd --create-home --uid 10001 appuser
