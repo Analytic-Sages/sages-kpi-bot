@@ -198,6 +198,7 @@ class Blocker(Base):
     blocker_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     task_id: Mapped[str | None] = mapped_column(ForeignKey("tasks.task_id", ondelete="SET NULL"))
     reported_by: Mapped[str | None] = mapped_column(ForeignKey("people.person_id", ondelete="RESTRICT"))
+    owner_person_id: Mapped[str | None] = mapped_column(ForeignKey("people.person_id", ondelete="SET NULL"))
     telegram_message_id: Mapped[str | None] = mapped_column(String(100), unique=True)
     description: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(String(16), default="Open", nullable=False)

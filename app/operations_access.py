@@ -37,6 +37,13 @@ def is_manager(actor:Actor,db:Session,team_id:str|None=None):
         return True
     return db.scalar(select(Team.team_id).where(Team.team_id==team_id,Team.lead_person_id==actor.person_id)) is not None
 
+def has_team_permission(actor:Actor,db:Session,team_id:str,permission:str):
+    if actor.is_admin:return True
+    if not actor.person or actor.person.team_id!=team_id:return False
+    if is_manager(actor,db,team_id):return True
+    return bool(actor.person.role_id and db.scalar(select(RolePermission.permission).where(
+        RolePermission.role_id==actor.person.role_id,RolePermission.permission==permission)))
+
 def can_access_team(actor:Actor,db:Session,team_id:str):
     return actor.is_admin or bool(actor.person and (actor.person.team_id==team_id or is_manager(actor,db,team_id)))
 

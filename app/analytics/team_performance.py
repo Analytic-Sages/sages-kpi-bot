@@ -1,13 +1,11 @@
-"""Team performance analytics derived from normalized operational records.
-
-The workbook remains the source of truth. Header matching is tolerant of harmless naming
-variations, but the service never writes to Sheets and never fabricates missing metrics.
-"""
+"""Team performance analytics derived from normalized PostgreSQL operational records."""
 from __future__ import annotations
 
 import re
 from collections import Counter, defaultdict
 from datetime import UTC, date, datetime, timedelta
+
+from app.analytics.kpi_calculations import calculate_achievement
 from typing import Any
 
 PEOPLE_SHEET = "People Directory"
@@ -354,23 +352,7 @@ def build_team_performance(
             target = item["target"]
         actual = _number(_get(row, "kpi_actual"))
         direction = item["direction"]
-        lower_is_better = any(
-            token in direction
-            for token in ("lower", "decrease", "maximum", "max ", "at most", "reduce")
-        )
-        attainment = None
-        below_target = None
-        if target is not None and actual is not None:
-            if lower_is_better:
-                attainment = (
-                    100.0
-                    if actual <= target
-                    else round(target / actual * 100, 1) if actual else 100.0
-                )
-                below_target = actual > target
-            elif target > 0:
-                attainment = round(actual / target * 100, 1)
-                below_target = actual < target
+        attainment, below_target = calculate_achievement(actual, target, direction)
         kpi_results.append({
             "kpi_id": kpi_id,
             "kpi": item["name"],

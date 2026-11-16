@@ -1,16 +1,17 @@
 """Team-scoped read APIs backed by PostgreSQL."""
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.operations_access import Actor, resolve_actor
+from app.operations_access import Actor, has_team_permission, is_manager, resolve_actor
+from app.analytics.kpi_calculations import calculate_achievement
 from app.operations_db import get_db
-from app.operations_models import KPI, KPIResult, Person, Role, Task, Team
+from app.operations_models import KPI, KPIResult, Person, Role, RolePermission, Task, Team
 
 
 def create_operations_router() -> APIRouter:
@@ -42,6 +43,20 @@ def create_operations_router() -> APIRouter:
         db.execute(select(1))
         return {"status": "connected", "database": "postgresql", "checked_at": datetime.now(UTC).isoformat()}
 
+    @router.get("/capabilities")
+    def capabilities(request: Request, db: Session = Depends(get_db)):
+        actor, denied = authorize(request, db)
+        if denied:
+            return denied
+        team_id = actor.person.team_id if actor.person else None
+        return {"is_admin": actor.is_admin, "person_id": actor.person_id, "team_id": team_id,
+                "is_team_manager": bool(team_id and is_manager(actor, db, team_id)),
+                "can_manage_tasks": bool(team_id and has_team_permission(actor, db, team_id, "task.manage")),
+                "can_manage_kpis": bool(team_id and has_team_permission(actor, db, team_id, "kpi.manage")),
+                "can_manage_reviews": bool(team_id and has_team_permission(actor, db, team_id, "review.manage")),
+                "can_manage_staff": bool(team_id and has_team_permission(actor, db, team_id, "staff.manage")),
+                "writes_enabled": bool(request.app.state.settings.operations_db_writes_enabled)}
+
     @router.get("/teams")
     def teams(request: Request, db: Session = Depends(get_db)):
         actor, denied = authorize(request, db)
@@ -59,7 +74,13 @@ def create_operations_router() -> APIRouter:
         if denied:
             return denied
         rows = db.scalars(select(Role).order_by(Role.name)).all()
-        return {"items": [{"id": x.role_id, "name": x.name, "core_domain": x.core_domain, "responsibilities": x.responsibilities, "output_metrics": x.output_metrics} for x in rows], "total": len(rows)}
+        items = []
+        for role in rows:
+            permissions = db.scalars(select(RolePermission.permission).where(RolePermission.role_id == role.role_id)).all()
+            items.append({"id": role.role_id, "name": role.name, "core_domain": role.core_domain,
+                          "responsibilities": role.responsibilities, "output_metrics": role.output_metrics,
+                          "permissions": permissions})
+        return {"items": items, "total": len(items)}
 
     @router.get("/people")
     def people(request: Request, db: Session = Depends(get_db), limit: int = Query(100, ge=1, le=500), offset: int = Query(0, ge=0), team_id: str | None = None):
@@ -86,7 +107,7 @@ def create_operations_router() -> APIRouter:
         } for x in rows], "total": total, "limit": limit, "offset": offset}
 
     @router.get("/tasks")
-    def tasks(request: Request, db: Session = Depends(get_db), assignee: str | None = None, team: str | None = None, status: str | None = None, overdue_only: bool = False, limit: int = Query(50, ge=1, le=500), offset: int = Query(0, ge=0)):
+    def tasks(request: Request, db: Session = Depends(get_db), assignee: str | None = None, team: str | None = None, status: str | None = None, overdue_only: bool = False, deadline_filter: str | None = None, limit: int = Query(50, ge=1, le=500), offset: int = Query(0, ge=0)):
         actor, denied = authorize(request, db)
         if denied:
             return denied
@@ -102,6 +123,9 @@ def create_operations_router() -> APIRouter:
             query = query.where(func.lower(Task.status) == status.casefold())
         if overdue_only:
             query = query.where(Task.deadline < datetime.now(UTC).date(), Task.status.notin_({"Completed", "Cancelled", "Closed"}))
+        if deadline_filter == "upcoming":
+            today = datetime.now(UTC).date()
+            query = query.where(Task.deadline >= today, Task.deadline <= today + timedelta(days=7), Task.status.notin_({"Completed", "Cancelled", "Closed"}))
         total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
         rows = db.scalars(query.order_by(Task.deadline.asc().nulls_last(), Task.task_id).limit(limit).offset(offset)).all()
         return {"items": [{"id": x.task_id, "name": x.name, "task_type": x.task_type, "team_id": x.team_id,
@@ -152,11 +176,18 @@ def create_operations_router() -> APIRouter:
             query = query.where(KPI.team_id == team_id)
         total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
         rows = db.scalars(query.order_by(KPIResult.period_start.desc(), KPIResult.id.desc()).limit(limit).offset(offset)).all()
-        return {"items": [{"id": x.id, "kpi_id": x.kpi_id, "period_start": x.period_start.isoformat(),
+        items = []
+        for x in rows:
+            kpi = db.get(KPI, x.kpi_id)
+            achievement, below = calculate_achievement(float(x.actual) if x.actual is not None else None,
+                float(x.target_used), kpi.direction if kpi else None)
+            items.append({"id": x.id, "kpi_id": x.kpi_id, "period_start": x.period_start.isoformat(),
                            "actual": str(x.actual) if x.actual is not None else None, "target_used": str(x.target_used),
                            "target_override": str(x.target_override) if x.target_override is not None else None,
                            "comment": x.comment, "next_action": x.next_action, "logged_by": x.logged_by,
-                           "logged_at": x.logged_at.isoformat() if x.logged_at else None} for x in rows],
-                "total": total, "limit": limit, "offset": offset}
+                           "logged_at": x.logged_at.isoformat() if x.logged_at else None,
+                           "achievement": achievement, "below_target": below,
+                           "kpi_name": kpi.name if kpi else x.kpi_id, "direction": kpi.direction if kpi else None})
+        return {"items": items, "total": total, "limit": limit, "offset": offset}
 
     return router
