@@ -297,5 +297,50 @@ def test_config_import_ignores_instruction_rows_and_reports_worker_unused_settin
         for item in result["warnings"]
     )
     assert "workbook.Blue on yellow = you edit it. Grey = automatic." not in expected
-    assert "manager_chat_id" in result["runtime_setting_review"]["not_read_by_operations_worker"]
+    assert "workbook.Cfg_ManagerChatID" in result["runtime_setting_review"]["not_read_by_operations_worker"]
+    assert "workbook.Cfg_ManagerChatID" in result["runtime_setting_review"]["retained_as_workbook_reference"]
     assert "timezone" in result["runtime_setting_review"]["worker_consumed"]
+
+
+
+def test_unimplemented_runtime_settings_are_preserved_without_becoming_live_controls(tmp_path, monkeypatch):
+    path = tmp_path / "tracker.xlsx"
+    make_workbook(path)
+    workbook = __import__("openpyxl").load_workbook(path)
+    config = workbook["Config"]
+    config.append(["Cfg_DueCooldownHrs", 12, "Due reminder cooldown"])
+    config.append(["Cfg_ManagerChatID", "12345", "Manager chat"])
+    config.append(["Cfg_QuietHours", "20:00-07:00", "Quiet hours"])
+    config.append(["Cfg_KPILogWeekday", 1, "KPI logging weekday"])
+    workbook.save(path)
+
+    data, _ = importer.load(path)
+    expected = importer.expected_settings(data)
+    result = importer.report(data)
+
+    assert expected["workbook.Cfg_DueCooldownHrs"] == 12
+    assert expected["workbook.Cfg_ManagerChatID"] == 12345
+    assert expected["workbook.Cfg_QuietHours"] == "20:00-07:00"
+    assert expected["workbook.Cfg_KPILogWeekday"] == 1
+    assert "due_reminder_cooldown_hours" not in expected
+    assert "manager_chat_id" not in expected
+    assert "quiet_hours" not in expected
+    assert "kpi_log_weekday" not in expected
+    assert "workbook.Cfg_QuietHours" in result["runtime_setting_review"]["not_read_by_operations_worker"]
+    assert "workbook.Cfg_QuietHours" in result["runtime_setting_review"]["retained_as_workbook_reference"]
+
+    engine = create_engine(
+        "sqlite+pysqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(engine)
+    monkeypatch.setattr(importer, "SessionLocal", sessionmaker(bind=engine, autoflush=False))
+    importer.apply(data)
+
+    with importer.SessionLocal() as db:
+        settings = {item.key: item.value for item in db.scalars(select(Setting)).all()}
+        assert settings["workbook.Cfg_QuietHours"] == "20:00-07:00"
+        assert "quiet_hours" not in settings
+        assert settings["bot_enabled"] is False
+    engine.dispose()

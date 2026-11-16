@@ -353,14 +353,18 @@ def report(data: dict[str, list[dict[str, Any]]]) -> dict[str, Any]:
                 "escalation_cooldown_hours", "digest_time",
             ],
             "not_read_by_operations_worker": sorted({
-                SETTING_MAP.get(str(row.get("Setting Key")), f"workbook.{row.get('Setting Key')}")
+                _mapped_setting_key(str(row.get("Setting Key")))
                 for row in data["Config"]
-                if SETTING_MAP.get(str(row.get("Setting Key")), f"workbook.{row.get('Setting Key')}") not in {
+                if _mapped_setting_key(str(row.get("Setting Key"))) not in {
                     "bot_enabled", "timezone", "due_soon_days",
                     "reminder_cooldown_hours", "escalate_after_days",
                     "escalation_cooldown_hours", "digest_time",
                     "workbook.Cfg_BotEnabled_requested",
                 }
+            }),
+            "retained_as_workbook_reference": sorted({
+                f"workbook.{key}" for key in WORKBOOK_ONLY_SETTINGS
+                if any(str(row.get("Setting Key")) == key for row in data["Config"])
             }),
         },
         "ready": not issues and not any(duplicates.values()),
@@ -382,23 +386,34 @@ def _empty_target(db) -> bool:
 
 
 SETTING_MAP = {
+    # These settings are consumed by the current operations worker.
     "Cfg_BotEnabled": "bot_enabled",
     "Cfg_Timezone": "timezone",
     "Cfg_DueSoonDays": "due_soon_days",
     "Cfg_OverdueCooldownHrs": "reminder_cooldown_hours",
-    "Cfg_DueCooldownHrs": "due_reminder_cooldown_hours",
     "Cfg_EscalateAfterDays": "escalate_after_days",
     "Cfg_EscalationCooldownHrs": "escalation_cooldown_hours",
-    "Cfg_ManagerChatID": "manager_chat_id",
+    "Cfg_DigestTime": "digest_time",
+    # Thresholds are retained as named settings for other application surfaces.
     "Cfg_OnTrack": "on_track_threshold",
     "Cfg_AtRisk": "at_risk_threshold",
-    "Cfg_KPILogWeekday": "kpi_log_weekday",
-    "Cfg_ReviewWeekday": "review_weekday",
-    "Cfg_DigestTime": "digest_time",
-    "Cfg_QuietHours": "quiet_hours",
-    "Cfg_WeekStart": "week_start",
-    "Cfg_KPIWeek": "kpi_week",
 }
+
+WORKBOOK_ONLY_SETTINGS = {
+    "Cfg_DueCooldownHrs",
+    "Cfg_ManagerChatID",
+    "Cfg_KPILogWeekday",
+    "Cfg_ReviewWeekday",
+    "Cfg_QuietHours",
+    "Cfg_WeekStart",
+    "Cfg_KPIWeek",
+}
+
+
+def _mapped_setting_key(source_key: str) -> str:
+    if source_key in WORKBOOK_ONLY_SETTINGS:
+        return f"workbook.{source_key}"
+    return SETTING_MAP.get(source_key, f"workbook.{source_key}")
 
 
 def _setting_value(value: Any) -> Any:
@@ -424,7 +439,7 @@ def expected_settings(data: dict[str, list[dict[str, Any]]]) -> dict[str, Any]:
     for row in data["Config"]:
         key = str(row.get("Setting Key"))
         value = _setting_value(row.get("Value"))
-        mapped_key = SETTING_MAP.get(key, f"workbook.{key}")
+        mapped_key = _mapped_setting_key(key)
         if key == "Cfg_BotEnabled":
             expected["workbook.Cfg_BotEnabled_requested"] = value
             value = False
