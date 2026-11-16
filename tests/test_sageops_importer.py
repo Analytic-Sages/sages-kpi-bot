@@ -9,7 +9,7 @@ from sqlalchemy.pool import StaticPool
 from app.operations_db import Base
 from app.operations_models import (
     Blocker, JobRun, KPI, KPIResult, Notification, NotificationAttempt, Person,
-    ReviewAction, Setting, Task, TaskDetail, Team, WeeklyReview,
+    ReviewAction, Setting, Task, TaskDetail, TaskReminderState, Team, WeeklyReview,
 )
 from scripts import import_sageops_workbook as importer
 
