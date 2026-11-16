@@ -15,6 +15,7 @@ from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
 
 from app.admin_auth import require_admin
+from app import operations_admin_adapter
 from app.sheets.client import GoogleSheetsClient, GoogleSheetsError
 
 logger = logging.getLogger("polaris.admin_records")
@@ -126,6 +127,15 @@ def create_admin_records_router() -> APIRouter:
         if session is None:
             return _unauthorized()
         settings = request.app.state.settings
+        if settings.operations_db_reads_enabled:
+            try:
+                return _response(operations_admin_adapter.list_tasks(
+                    limit=limit, offset=offset, status=status, team=team, person=person,
+                    query=query, overdue_only=overdue_only,
+                ))
+            except Exception:
+                logger.warning("admin_task_list_failed reason=database_unavailable")
+                return _response({"detail": "Task data is temporarily unavailable. Check PostgreSQL connectivity."}, 503)
         if not settings.google_sheet_id:
             return _response({"detail": "Google Sheets is not configured"}, 503)
         try:
@@ -250,6 +260,13 @@ def create_admin_records_router() -> APIRouter:
         if not task_id.strip() or len(task_id) > 200:
             return _response({"detail": "Invalid task ID"}, 422)
         settings = request.app.state.settings
+        if settings.operations_db_reads_enabled:
+            try:
+                result = operations_admin_adapter.get_task(task_id.strip())
+                return _response(result) if result else _response({"detail": "Task not found"}, 404)
+            except Exception:
+                logger.warning("admin_task_detail_failed reason=database_unavailable")
+                return _response({"detail": "Task data is temporarily unavailable. Check PostgreSQL connectivity."}, 503)
         if not settings.google_sheet_id:
             return _response({"detail": "Google Sheets is not configured"}, 503)
         try:
@@ -307,6 +324,14 @@ def create_admin_records_router() -> APIRouter:
         if session is None:
             return _unauthorized()
         settings = request.app.state.settings
+        if settings.operations_db_reads_enabled:
+            try:
+                return _response(operations_admin_adapter.list_kpis(
+                    limit=limit, offset=offset, team=team, person=person, active_only=active_only,
+                ))
+            except Exception:
+                logger.warning("admin_kpi_list_failed reason=database_unavailable")
+                return _response({"detail": "KPI data is temporarily unavailable. Check PostgreSQL connectivity."}, 503)
         if not settings.google_sheet_id:
             return _response({"detail": "Google Sheets is not configured"}, 503)
         try:
