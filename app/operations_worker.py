@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from app.config import get_settings
 from app.operations_db import SessionLocal
-from app.operations_models import JobRun,Notification,Person,Setting,Task,TaskReminderState,Team
+from app.operations_models import JobRun,KPI,KPIResult,Notification,Person,ReviewAction,Setting,Task,TaskReminderState,Team,WeeklyReview
 from app.operations_rules import reminder_decision,escalation_due
 from zoneinfo import ZoneInfo
 logging.basicConfig(level=os.getenv("LOG_LEVEL","INFO"));log=logging.getLogger("sageops.worker");settings=get_settings()
@@ -18,9 +18,13 @@ def val(db,key,default):
 def queue(db,p,kind,ref,message,at):
     if not p or not p.telegram_chat_id or not p.notify:return False
     item=Notification(person_id=p.person_id,chat_id=p.telegram_chat_id,type=kind,reference_id=ref,message=message,dedupe_key=f"{kind}:{ref}:{p.person_id}:{at.date()}",available_at=at)
-    db.add(item)
-    try:db.flush();return True
-    except IntegrityError:db.rollback();return False
+    try:
+        with db.begin_nested():
+            db.add(item)
+            db.flush()
+        return True
+    except IntegrityError:
+        return False
 def scan():
     if SessionLocal is None:raise RuntimeError("DATABASE_URL is not configured")
     now=datetime.now(UTC);count=0
@@ -42,6 +46,41 @@ def scan():
                 if lead:count+=int(queue(db,lead,"task_escalation",t.task_id,f"Escalation: {t.name} ({t.task_id}) remains overdue.",d.send_after));s.last_escalated_at=now
         db.commit()
     return count
+def scan_digests():
+    """Queue one per-person daily attention digest after the configured local time."""
+    if SessionLocal is None:
+        raise RuntimeError("DATABASE_URL is not configured")
+    now=datetime.now(UTC)
+    queued=0
+    with SessionLocal() as db:
+        if not val(db,"bot_enabled",False):
+            return 0
+        tz=val(db,"timezone","Africa/Lagos")
+        local=now.astimezone(ZoneInfo(tz))
+        hour,minute=(str(val(db,"digest_time","08:00")).split(":")+["0"])[:2]
+        if (local.hour,local.minute)<(int(hour),int(minute)):
+            return 0
+        today=local.date()
+        people=db.scalars(select(Person).where(Person.status=="Active",Person.notify.is_(True),Person.telegram_chat_id.is_not(None))).all()
+        for person in people:
+            if person.last_digest_sent_at and person.last_digest_sent_at.astimezone(ZoneInfo(tz)).date()==today:
+                continue
+            tasks=db.scalars(select(Task).where(Task.assigned_to==person.person_id,Task.status.notin_({"Completed","Cancelled","Closed"}))).all()
+            overdue=sum(1 for t in tasks if t.deadline and t.deadline<today and t.status!="On Hold")
+            due_today=sum(1 for t in tasks if t.deadline==today and t.status!="On Hold")
+            due_soon=sum(1 for t in tasks if t.deadline and today<t.deadline<=today+timedelta(days=int(val(db,"due_soon_days",2))) and t.status!="On Hold")
+            actions=db.scalars(select(ReviewAction).where(ReviewAction.owner_person_id==person.person_id,ReviewAction.status=="Open")).all()
+            attention=overdue+due_today+due_soon+len(actions)
+            if attention<=0:
+                continue
+            message=(f"Your SageOps daily digest\nOpen tasks: {len(tasks)}\nOverdue: {overdue}\n"
+                     f"Due today: {due_today}\nDue soon: {due_soon}\nOpen review actions: {len(actions)}")
+            if queue(db,person,"daily_digest",person.person_id,message,now):
+                person.last_digest_sent_at=now
+                queued+=1
+        db.commit()
+    return queued
+
 async def dispatch(limit=50):
     if not settings.telegram_bot_token or os.getenv("OPERATIONS_NOTIFICATIONS_ENABLED","false").casefold()!="true" or settings.dry_run:return 0
     sent=0
@@ -67,7 +106,7 @@ async def main():
     while True:
         started=datetime.now(UTC)
         try:
-            queued=scan();sent=await dispatch()
+            queued=scan()+scan_digests();sent=await dispatch()
             with SessionLocal() as db:db.add(JobRun(job_name="reminder_dispatch",started_at=started,finished_at=datetime.now(UTC),status="success",detail=f"queued={queued};sent={sent}"));db.commit()
         except Exception as exc:
             log.exception("worker_cycle_failed")
