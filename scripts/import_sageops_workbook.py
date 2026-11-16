@@ -52,14 +52,16 @@ def report(d):
     for row in d["People Directory"]:
         if row.get("Team") and row["Team"] not in team_names:issues.append({"sheet":"People Directory","row":row["_row"],"issue":"unknown_team","value":row["Team"]})
         if row.get("Reports To ID") and row["Reports To ID"] not in person_ids:issues.append({"sheet":"People Directory","row":row["_row"],"issue":"unknown_manager","value":row["Reports To ID"]})
+    warnings=[]
     for row in d["KPI Register"]:
-        if row.get("Owner Person ID") not in person_ids:issues.append({"sheet":"KPI Register","row":row["_row"],"issue":"unknown_owner","value":row.get("Owner Person ID")})
+        if row.get("Owner Person ID") and row["Owner Person ID"] not in person_ids:issues.append({"sheet":"KPI Register","row":row["_row"],"issue":"unknown_owner_reference","value":row.get("Owner Person ID")})
+        if not row.get("Owner Person ID"):warnings.append({"sheet":"KPI Register","row":row["_row"],"issue":"unassigned_team_kpi","kpi_id":row.get("KPI ID"),"kpi":row.get("KPI")})
         if row.get("Team") and row["Team"] not in team_names:issues.append({"sheet":"KPI Register","row":row["_row"],"issue":"unknown_team","value":row["Team"]})
     for row in d["Master Task Tracker"]:
         if row.get("Team") and row["Team"] not in team_names:issues.append({"sheet":"Master Task Tracker","row":row["_row"],"issue":"unknown_team","value":row["Team"]})
         for col in ("Assigned To ID","Assigned By ID","Reviewer ID"):
             if row.get(col) and row[col] not in person_ids:issues.append({"sheet":"Master Task Tracker","row":row["_row"],"issue":"unknown_person_reference","column":col,"value":row[col]})
-    return {"counts":{"teams":len(d["Teams"]),"people":len(d["People Directory"]),"kpis":len(d["KPI Register"]),"tasks":len(d["Master Task Tracker"]),"weekly_kpi_results":len(d["Weekly KPI Log"]),"weekly_reviews":len(d["Weekly Review"])},"duplicates":duplicates,"issues":issues,"ready":not issues and not any(duplicates.values())}
+    return {"counts":{"teams":len(d["Teams"]),"people":len(d["People Directory"]),"kpis":len(d["KPI Register"]),"tasks":len(d["Master Task Tracker"]),"weekly_kpi_results":len(d["Weekly KPI Log"]),"weekly_reviews":len(d["Weekly Review"])},"duplicates":duplicates,"issues":issues,"warnings":warnings,"ready":not issues and not any(duplicates.values())}
 def apply(d):
     if SessionLocal is None:raise RuntimeError("DATABASE_URL is not configured")
     db=SessionLocal()
@@ -88,13 +90,15 @@ def apply(d):
             if team and lead and db.get(Person,str(lead)):team.lead_person_id=str(lead)
         for x in d["KPI Register"]:
             kid,name,owner=x.get("KPI ID"),x.get("KPI"),x.get("Owner Person ID");team=tmap.get(str(x.get("Team")))
-            if not(kid and name and owner and team and db.get(Person,str(owner))):continue
+            if not(kid and name and team):continue
+            if owner and not db.get(Person,str(owner)):continue
+            owner_id=str(owner) if owner else None
             direction=str(x.get("Direction") or "Increase");direction=direction if direction in {"Increase","Decrease","Maintain"} else "Increase"
             freq=str(x.get("Frequency") or "Weekly");freq=freq if freq in {"Daily","Weekly","Monthly","Quarterly"} else "Weekly"
             try:target=Decimal(str(x.get("Target") or 0))
             except InvalidOperation:target=Decimal(0)
             source=str(x.get("Data Source") or "Manual");source=source if source in {"Manual","Auto"} else "Manual"
-            db.add(KPI(kpi_id=str(kid),team_id=team,role_id=rmap.get(x.get("Role")),name=str(name)[:200],definition=str(x.get("Definition / Measurement") or ""),direction=direction,frequency=freq,owner_person_id=str(owner),target=target,unit=str(x.get("Unit") or "")[:40] or None,data_source=source,active=truth(x.get("Active?"))))
+            db.add(KPI(kpi_id=str(kid),team_id=team,role_id=rmap.get(x.get("Role")),name=str(name)[:200],definition=str(x.get("Definition / Measurement") or ""),direction=direction,frequency=freq,owner_person_id=owner_id,target=target,unit=str(x.get("Unit") or "")[:40] or None,data_source=source,active=truth(x.get("Active?"))))
         db.flush()
         for x in d["Master Task Tracker"]:
             tid,name=x.get("Task ID"),x.get("Task Name");team=tmap.get(str(x.get("Team")))
