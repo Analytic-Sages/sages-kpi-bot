@@ -7,9 +7,9 @@ from __future__ import annotations
 import os
 from collections.abc import Generator
 
+from fastapi import HTTPException
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
-from fastapi import HTTPException
 
 from app.config import get_settings
 
