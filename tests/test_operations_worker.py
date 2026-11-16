@@ -141,3 +141,18 @@ async def test_run_once_treats_lock_contention_as_a_safe_skip(monkeypatch):
 
     assert calls == ["cycle"]
     assert result is None
+
+
+def test_weekly_reminder_schedule_settings_are_configurable_and_bounded():
+    configured = Settings(
+        _env_file=None,
+        operations_kpi_reminder_weekday=0,
+        operations_review_reminder_weekday=6,
+    )
+    assert configured.operations_kpi_reminder_weekday == 0
+    assert configured.operations_review_reminder_weekday == 6
+
+    with pytest.raises(ValueError):
+        Settings(_env_file=None, operations_kpi_reminder_weekday=7)
+    with pytest.raises(ValueError):
+        Settings(_env_file=None, operations_review_reminder_weekday=-1)
