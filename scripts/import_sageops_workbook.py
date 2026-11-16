@@ -355,12 +355,16 @@ def report(data: dict[str, list[dict[str, Any]]]) -> dict[str, Any]:
             "not_read_by_operations_worker": sorted({
                 _mapped_setting_key(str(row.get("Setting Key")))
                 for row in data["Config"]
-                if SETTING_MAP.get(str(row.get("Setting Key")), f"workbook.{row.get('Setting Key')}") not in {
+                if _mapped_setting_key(str(row.get("Setting Key"))) not in {
                     "bot_enabled", "timezone", "due_soon_days",
                     "reminder_cooldown_hours", "escalate_after_days",
                     "escalation_cooldown_hours", "digest_time",
                     "workbook.Cfg_BotEnabled_requested",
                 }
+            }),
+            "retained_as_workbook_reference": sorted({
+                f"workbook.{key}" for key in WORKBOOK_ONLY_SETTINGS
+                if any(str(row.get("Setting Key")) == key for row in data["Config"])
             }),
         },
         "ready": not issues and not any(duplicates.values()),
