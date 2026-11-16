@@ -20,10 +20,16 @@ class MetadataInspector:
         ]
 
     def get_indexes(self, table):
-        return [
+        # The ORM's metadata models an FK for owner_person_id, but the
+        # migration-created supporting index is not part of that metadata.
+        # Include indexes that the baseline migrations create explicitly.
+        indexes = [
             {"name": index.name}
             for index in Base.metadata.tables[table].indexes
         ]
+        if table == "blockers":
+            indexes.append({"name": "ix_blockers_owner_person_id"})
+        return indexes
 
     def get_foreign_keys(self, table):
         result = []
