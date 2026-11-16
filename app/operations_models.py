@@ -77,7 +77,7 @@ class KPI(Base):
     definition: Mapped[str | None] = mapped_column(Text)
     direction: Mapped[str] = mapped_column(String(16), nullable=False)
     frequency: Mapped[str] = mapped_column(String(16), nullable=False)
-    owner_person_id: Mapped[str] = mapped_column(ForeignKey("people.person_id", ondelete="RESTRICT"), nullable=False)
+    owner_person_id: Mapped[str | None] = mapped_column(ForeignKey("people.person_id", ondelete="SET NULL"), nullable=True)
     target: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
     unit: Mapped[str | None] = mapped_column(String(40))
     data_source: Mapped[str] = mapped_column(String(16), default="Manual", nullable=False)
